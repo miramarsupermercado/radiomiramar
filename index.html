@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rádio Miramar | Studio Pro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { 
+      --primary: #f39c12; 
+      --primary-glow: rgba(243, 156, 18, 0.3);
+      --bg-dark: #0f1115; 
+      --sidebar-bg: #1a1d23; 
+      --card-bg: #252932;
+      --text-main: #f8f9fa;
+      --text-dim: #a0a0a0;
+      --accent: #2ecc71;
+    }
+
+    * { box-sizing: border-box; transition: all 0.2s ease; }
+
+    body { 
+      font-family: 'Inter', sans-serif; 
+      margin: 0; 
+      background: var(--bg-dark); 
+      color: var(--text-main); 
+      height: 100vh; 
+      overflow: hidden; 
+      display: flex;
+      flex-direction: column;
+    }
+
+    nav { 
+      background: var(--sidebar-bg); 
+      display: flex; 
+      padding: 0 25px; 
+      height: 60px;
+      align-items: center;
+      gap: 30px; 
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 100;
+    }
+
+    .nav-btn { 
+      background: none; border: none; color: var(--text-dim); cursor: pointer; 
+      font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; 
+      height: 100%; border-bottom: 3px solid transparent;
+    }
+
+    .nav-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .main-layout { flex: 1; display: flex; overflow: hidden; }
+    #page-player { display: flex; flex: 1; width: 100%; }
+
+    .player-zone { 
+      flex: 1; position: relative; display: flex; flex-direction: column; 
+      align-items: center; justify-content: center; 
+      background: radial-gradient(circle at center, #1e3a8a 0%, #0f172a 100%);
+      overflow: hidden; 
+    }
+
+    #visualizer { position: absolute; bottom: 0; left: 0; width: 100%; height: 60%; opacity: 0.4; pointer-events: none; }
+    .player-content { z-index: 10; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 20px; }
+
+    .album-art { 
+      width: 220px; height: 220px; background: #000; border-radius: 50%; 
+      display: flex; align-items: center; justify-content: center; 
+      border: 8px solid #222; box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 0 20px var(--primary-glow);
+      animation: pulse 4s infinite ease-in-out; margin-bottom: 30px;
+    }
+
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); border-color: var(--primary); } }
+
+    #status { color: var(--accent); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 15px; font-weight: 700; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
+    #status::before { content: ""; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--accent); }
+
+    #current-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 30px; text-align: center; max-width: 600px; text-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+
+    .controls-row { display: flex; align-items: center; gap: 25px; margin-bottom: 40px; }
+    .round-btn { width: 70px; height: 70px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: var(--text-main); color: #000; }
+    .round-btn:hover { transform: translateY(-3px); background: var(--primary); color: #fff; }
+    .btn-secondary { width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: #fff; }
+
+    .progress-container { width: 90%; max-width: 600px; }
+    .bar-bg { background: rgba(255,255,255,0.1); height: 6px; border-radius: 10px; overflow: hidden; position: relative; cursor: pointer; }
+    #progress-fill { background: linear-gradient(90deg, #d35400, var(--primary)); height: 100%; width: 0%; border-radius: 10px; pointer-events: none; }
+
+    .sidebar { width: 380px; background: var(--sidebar-bg); border-left: 1px solid rgba(255,255,255,0.05); padding: 25px; display: flex; flex-direction: column; }
+    .sidebar h4 { color: var(--text-dim); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 2px; margin-bottom: 20px; }
+
+    .track-item { padding: 15px; border-radius: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.03); font-size: 0.85rem; display: flex; align-items: center; cursor: default; pointer-events: none; user-select: none; border-left: 3px solid transparent; }
+
+    .btn-pao { background: #c0392b; color: #fff; border: none; padding: 20px; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: auto; box-shadow: 0 4px 15px rgba(192, 57, 43, 0.3); }
+
+    #page-config { flex: 1; padding: 60px; overflow-y: auto; display: none; background: var(--bg-dark); }
+    .config-card { background: var(--card-bg); padding: 40px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); max-width: 800px; margin: auto; }
+
+    .input-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; font-size: 0.8rem; color: var(--primary); font-weight: 600; }
+    input[type="file"] { background: #1a1d23; border: 1px solid #3d4451; color: #fff; padding: 14px; border-radius: 10px; width: 100%; outline: none; }
+    
+    .genre-controls { background: rgba(0,0,0,0.2); padding: 20px; border-radius: 15px; margin-top: 15px; display: grid; gap: 15px; }
+    .genre-row { display: flex; align-items: center; gap: 15px; }
+    .genre-row span { min-width: 120px; font-size: 0.85rem; }
+    input[type="range"] { flex: 1; accent-color: var(--primary); cursor: pointer; }
+    .percentage-label { min-width: 45px; font-weight: bold; color: var(--accent); }
+
+    .save-btn { background: var(--primary); color: #fff; border: none; padding: 20px; width: 100%; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div style="font-weight: 800; color: var(--primary); margin-right: 20px;">MIRAMAR PRO</div>
+    <button class="nav-btn active" id="btn-player" onclick="showPage('player')">Estúdio ao Vivo</button>
+    <button class="nav-btn" id="btn-config" onclick="showPage('config')">Configurações</button>
+  </nav>
+
+  <div class="main-layout">
+    <div id="page-player">
+      <div class="player-zone">
+        <canvas id="visualizer"></canvas>
+        <div class="player-content">
+          <div id="status">No Ar</div>
+          <div class="album-art">
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          </div>
+          <div id="current-title">Aguardando Sincronização...</div>
+          
+          <div class="controls-row">
+            <button id="playPause" class="round-btn"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+            <button id="nextBtn" class="round-btn btn-secondary"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+          </div>
+
+          <div class="progress-container">
+            <div class="bar-bg" id="prog-container"><div id="progress-fill"></div></div>
+            <div style="display:flex; justify-content:space-between; margin-top:12px; color:var(--text-dim); font-size: 0.85rem;">
+              <span id="time-current">00:00</span>
+              <span id="time-total">00:00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar">
+        <h4>Próximas Músicas (No Ar)</h4>
+        <div id="playlist" style="flex:1; overflow-y:auto;"><div style="text-align: center; color: #555; margin-top: 20px;">Playlist vazia</div></div>
+        <button id="playAd" class="btn-pao">📢 ANÚNCIO DE EMERGÊNCIA (2X)</button>
+      </div>
+    </div>
+
+    <div id="page-config">
+      <div class="config-card">
+        <h2 style="margin-top:0">Configuração de Gêneros</h2>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 20px;">Selecione a pasta <b>"Musicas"</b> que contém as subpastas de gêneros.</p>
+        
+        <div class="input-group">
+          <label>Pasta Principal de Músicas (P1)</label>
+          <input id="f1" type="file" webkitdirectory directory multiple onchange="handleMusicDirectory(this)">
+        </div>
+
+        <div id="genre-settings" class="genre-controls" style="display:none;">
+          <label id="total-sum-label">Ajuste o Mix de Gêneros (Total: 100%)</label>
+          <div id="genre-list"></div>
+        </div>
+
+        <div class="input-group" style="margin-top:20px;"><label>Chamadas da Rádio (P3)</label><input id="f3" type="file" webkitdirectory directory multiple></div>
+        <div class="input-group"><label>Pasta de Locução de Hora (P4)</label><input id="f4" type="file" webkitdirectory directory multiple></div>
+        <div class="input-group"><label>Pasta de Avisos (Pão)</label><input id="fAds" type="file" webkitdirectory directory multiple></div>
+        
+        <button id="build" class="save-btn">SINCRONIZAR E INICIAR ESTÚDIO</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="audioA"></audio><audio id="audioB"></audio><audio id="audioAds"></audio>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-24, audioCtx.currentTime);
+    compressor.knee.setValueAtTime(30, audioCtx.currentTime);
+    compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+    compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+    compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+    const analyser = audioCtx.createAnalyser();
+    const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain();
+    const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds');
+    
+    audioCtx.createMediaElementSource(audioA).connect(gainA).connect(analyser);
+    audioCtx.createMediaElementSource(audioB).connect(gainB).connect(analyser);
+    audioCtx.createMediaElementSource(audioAds).connect(gainAds).connect(analyser);
+    
+    analyser.connect(compressor);
+    compressor.connect(audioCtx.destination);
+    analyser.fftSize = 256;
+
+    let playlist = [], currentIndex = -1, activePlayer = audioA, isAdPlaying = false;
+    let musicLibrary = {};
+
+    function showPage(p) {
+      document.getElementById('page-player').style.display = (p === 'player') ? 'flex' : 'none';
+      document.getElementById('page-config').style.display = (p === 'config') ? 'block' : 'none';
+      document.getElementById('btn-player').classList.toggle('active', p==='player');
+      document.getElementById('btn-config').classList.toggle('active', p==='config');
+    }
+
+    // --- LÓGICA DE GÊNEROS E DIRETÓRIO ---
+    function handleMusicDirectory(input) {
+      musicLibrary = {};
+      const files = Array.from(input.files).filter(f => f.type.startsWith('audio'));
+      
+      files.forEach(file => {
+        const pathParts = file.webkitRelativePath.split('/');
+        if (pathParts.length > 2) {
+          const genre = pathParts[1];
+          if (!musicLibrary[genre]) musicLibrary[genre] = [];
+          musicLibrary[genre].push(file);
+        }
+      });
+
+      const genreList = document.getElementById('genre-list');
+      genreList.innerHTML = '';
+      const genres = Object.keys(musicLibrary);
+
+      if (genres.length > 0) {
+        document.getElementById('genre-settings').style.display = 'block';
+        const initialVal = Math.floor(100 / genres.length);
+        let remainder = 100 % genres.length;
+
+        genres.forEach((genre, idx) => {
+          const row = document.createElement('div');
+          row.className = 'genre-row';
+          const val = initialVal + (remainder > 0 ? 1 : 0);
+          remainder--;
+          
+          row.innerHTML = `
+            <span>${genre}</span>
+            <input type="range" class="genre-range" data-genre="${genre}" value="${val}" min="0" max="100" oninput="rebalance(this)">
+            <span class="percentage-label">${val}%</span>
+          `;
+          genreList.appendChild(row);
+        });
+      }
+    }
+
+    // --- LÓGICA DE AJUSTE AUTOMÁTICO (REBALANCEAMENTO) ---
+    function rebalance(changedInput) {
+      const allInputs = Array.from(document.querySelectorAll('.genre-range'));
+      if (allInputs.length <= 1) return;
+
+      const changedValue = parseInt(changedInput.value);
+      const otherInputs = allInputs.filter(input => input !== changedInput);
+      
+      const totalAvailableForOthers = 100 - changedValue;
+      const currentSumOthers = otherInputs.reduce((sum, input) => sum + parseInt(input.value), 0);
+
+      if (currentSumOthers === 0) {
+        // Se todos os outros estão em zero, distribui igualmente
+        const share = totalAvailableForOthers / otherInputs.length;
+        otherInputs.forEach(input => input.value = share);
+      } else {
+        // Distribui proporcionalmente ao valor que já tinham
+        otherInputs.forEach(input => {
+          const ratio = parseInt(input.value) / currentSumOthers;
+          input.value = Math.round(ratio * totalAvailableForOthers);
+        });
+      }
+
+      // Ajuste fino para garantir que a soma seja exatamente 100 (evita erro de arredondamento)
+      let currentTotal = allInputs.reduce((sum, input) => sum + parseInt(input.value), 0);
+      let diff = 100 - currentTotal;
+      
+      if (diff !== 0) {
+        // Adiciona/subtrai a diferença do primeiro "outro" input que for possível
+        for (let input of otherInputs) {
+          let newVal = parseInt(input.value) + diff;
+          if (newVal >= 0 && newVal <= 100) {
+            input.value = newVal;
+            break;
+          }
+        }
+      }
+
+      // Atualiza os labels de texto
+      allInputs.forEach(input => {
+        input.nextElementSibling.textContent = input.value + '%';
+      });
+    }
+
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+    document.getElementById('build').onclick = () => {
+      const MAX_TOTAL = 300;
+      let finalMusicPool = [];
+      const genreInputs = document.querySelectorAll('.genre-range');
+      
+      genreInputs.forEach(input => {
+        const genre = input.dataset.genre;
+        const perc = parseInt(input.value) / 100;
+        const countForGenre = Math.round(MAX_TOTAL * perc);
+        
+        if (countForGenre > 0) {
+          let shuffledGenre = shuffle([...musicLibrary[genre]]);
+          finalMusicPool.push(...shuffledGenre.slice(0, countForGenre).map(f => ({ file: f, isP1: true, overlapStarted: false })));
+        }
+      });
+
+      finalMusicPool = shuffle(finalMusicPool).slice(0, MAX_TOTAL);
+
+      let p3 = shuffle(Array.from(document.getElementById('f3').files).filter(f => f.type.startsWith('audio')));
+      let p4 = Array.from(document.getElementById('f4').files);
+
+      if (!finalMusicPool.length) return alert("Selecione a pasta de músicas!");
+
+      playlist = [];
+      let ptr1 = 0, ptr3 = 0, count = 0;
+      
+      while (ptr1 < finalMusicPool.length) {
+        playlist.push(finalMusicPool[ptr1++]);
+        count++;
+        if (count % 2 === 0 && p4.length) playlist.push({ isHoraDinamica: true });
+        if (p3.length) { 
+            const vinheta = p3[ptr3 % p3.length];
+            playlist.push({ file: vinheta, isP3: true, overlapStarted: false }); 
+            ptr3++; 
+        }
+      }
+
+      currentIndex = -1;
+      render(); 
+      showPage('player'); 
+      play(0);
+    };
+
+    const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
+    function draw() {
+      requestAnimationFrame(draw);
+      canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+      gradient.addColorStop(0, "rgba(243, 156, 18, 0)"); gradient.addColorStop(1, "rgba(243, 156, 18, 0.6)");
+      const barW = (canvas.width / data.length) * 2;
+      for(let i=0; i<data.length; i++) {
+        let h = data[i] * (canvas.height / 255); ctx.fillStyle = gradient;
+        ctx.fillRect(i*(barW+2), canvas.height - h, barW, h);
+      }
+    }
+    draw();
+
+    function render() {
+      const future = playlist.map((item, idx) => ({ ...item, idx })).slice(currentIndex + 1).filter(it => it.isP1).slice(0, 5);
+      const playlistElement = document.getElementById('playlist');
+      if (future.length === 0 && currentIndex !== -1) { playlistElement.innerHTML = 'Fim da programação'; return; }
+      playlistElement.innerHTML = future.map(it => `<div class="track-item"><span style="opacity:0.5; margin-right:10px; font-size:0.7rem">EM SEGUIDA</span><div>${it.file.name.substring(0,35)}</div></div>`).join('');
+    }
+
+    async function play(i, isManual = false) {
+      if (i < 0 || i >= playlist.length) return;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      let item = playlist[i];
+
+      if (isManual && (item.isP3 || item.isHoraDinamica)) return play(i+1, true);
+      if (item.isHoraDinamica) { runBlindHoraCerta(i); return; }
+
+      const prev = activePlayer; const prevG = (prev === audioA) ? gainA : gainB;
+      if (isManual || (playlist[currentIndex]?.isP1 && item.isP3)) {
+        activePlayer = (prev === audioA) ? audioB : audioA; const curG = (activePlayer === audioA) ? gainA : gainB;
+        curG.gain.cancelScheduledValues(audioCtx.currentTime);
+        if (isManual) { 
+            prevG.gain.setTargetAtTime(0, audioCtx.currentTime, 1.2); 
+            setTimeout(() => { if (prev.src) prev.pause(); }, 4500); 
+            curG.gain.setValueAtTime(0, audioCtx.currentTime); 
+            curG.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 4); 
+        } else { curG.gain.setValueAtTime(1, audioCtx.currentTime); }
+      } else { audioA.pause(); audioB.pause(); activePlayer = audioA; gainA.gain.setValueAtTime(0, audioCtx.currentTime); gainA.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 1.5); }
+      
+      currentIndex = i; 
+      activePlayer.src = URL.createObjectURL(item.file); 
+      activePlayer.play();
+      document.getElementById('current-title').textContent = item.file.name.replace(/\.[^/.]+$/, ""); 
+      render();
+      
+      activePlayer.ontimeupdate = function() {
+        if(this !== activePlayer) return;
+        document.getElementById('progress-fill').style.width = (this.currentTime/this.duration*100) + "%";
+        document.getElementById('time-current').textContent = formatTime(this.currentTime);
+        document.getElementById('time-total').textContent = formatTime(this.duration);
+        if (item.isP1 && playlist[currentIndex+1]?.isP3 && !item.overlapStarted && (this.duration - this.currentTime <= 2.2)) { 
+            item.overlapStarted = true; 
+            play(currentIndex+1); 
+        }
+      };
+      activePlayer.onended = () => { if(!item.overlapStarted) play(currentIndex+1); };
+    }
+
+    async function runBlindHoraCerta(idx) {
+      audioA.pause(); audioB.pause();
+      audioA.onended = null; audioA.ontimeupdate = null;
+      audioB.onended = null; audioB.ontimeupdate = null;
+      const now = new Date();
+      const hStr = "HRS" + now.getHours().toString().padStart(2, '0');
+      const mStr = "MIN" + now.getMinutes().toString().padStart(2, '0');
+      const files = Array.from(document.getElementById('f4').files);
+      const fH = files.find(f => f.name.toUpperCase().includes(hStr));
+      const fM = files.find(f => f.name.toUpperCase().includes(mStr));
+      if (!fH) { play(idx + 1); return; }
+      currentIndex = idx; activePlayer = audioA; 
+      gainA.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainA.gain.setValueAtTime(1.4, audioCtx.currentTime); 
+      document.getElementById('current-title').textContent = `🎤 Locução: Hora Certa (${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')})`;
+      document.getElementById('progress-fill').style.width = "100%";
+      const playWait = (file) => new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        activePlayer.src = url;
+        activePlayer.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        activePlayer.onerror = () => resolve();
+        activePlayer.play().catch(resolve);
+      });
+      await playWait(fH);
+      if (fM) { await new Promise(r => setTimeout(r, 300)); await playWait(fM); }
+      await new Promise(r => setTimeout(r, 800));
+      play(idx + 1);
+    }
+
+    function formatTime(t) { if (isNaN(t)) return "00:00"; const min = Math.floor(t/60), sec = Math.floor(t%60); return `${min}:${sec<10?'0':''}${sec}`; }
+    document.getElementById('playPause').onclick = () => { if (currentIndex === -1) play(0); else activePlayer.paused ? activePlayer.play() : activePlayer.pause(); };
+    document.getElementById('nextBtn').onclick = () => play(currentIndex+1, true);
+
+    document.getElementById('prog-container').onclick = function(e) {
+      if (currentIndex === -1 || !activePlayer.duration) return;
+      const rect = this.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const pct = x / rect.width;
+      activePlayer.currentTime = pct * activePlayer.duration;
+    };
+
+    document.getElementById('playAd').onclick = () => {
+      const ads = Array.from(document.getElementById('fAds').files).filter(f => f.type.startsWith('audio'));
+      if(!ads.length || isAdPlaying) return;
+      isAdPlaying = true; let c = 0; const curG = (activePlayer===audioA)?gainA:gainB;
+      curG.gain.setTargetAtTime(0.2, audioCtx.currentTime, 0.5);
+      function runAd() { if(c < 2) { audioAds.src = URL.createObjectURL(ads[0]); audioAds.play(); audioAds.onended = () => { c++; setTimeout(runAd, 400); }; } else { curG.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 1.5); isAdPlaying = false; } }
+      runAd();
+    };
+  </script>
+</body>
+</html>
