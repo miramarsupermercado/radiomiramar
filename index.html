@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rádio Miramar | Studio Pro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+  
   <style>
     :root { 
       --primary: #f39c12; 
@@ -67,11 +69,14 @@
     .player-content { z-index: 10; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 20px; }
 
     .album-art { 
-      width: 220px; height: 220px; background: #000; border-radius: 50%; 
+      width: 280px; height: 280px; background: #000; border-radius: 50%; 
       display: flex; align-items: center; justify-content: center; 
       border: 8px solid #222; box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 0 20px var(--primary-glow);
       animation: pulse 4s infinite ease-in-out; margin-bottom: 30px;
+      position: relative; overflow: hidden;
     }
+
+    #album-img { width: 100%; height: 100%; object-fit: cover; display: none; }
 
     @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); border-color: var(--primary); } }
 
@@ -127,9 +132,14 @@
         <canvas id="visualizer"></canvas>
         <div class="player-content">
           <div id="status">No Ar</div>
-          <div class="album-art">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          
+          <div class="album-art" id="album-container">
+            <div id="fallback-icon">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            </div>
+            <img id="album-img" alt="Capa">
           </div>
+
           <div id="current-title">Aguardando Sincronização...</div>
           
           <div class="controls-row">
@@ -298,8 +308,6 @@
       changedInput.nextElementSibling.textContent = changedInput.value + '%';
     }
 
-    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-
     document.getElementById('build').onclick = () => {
       const MAX = 300;
       let pool = [];
@@ -338,13 +346,11 @@
       if (audioCtx.state === 'suspended') await audioCtx.resume();
       let item = playlist[i];
 
-      // Se for Hora Certa, usa o motor isolado
       if (item.isHoraDinamica) { runIsolatedHora(i); return; }
 
       const prev = activePlayer; 
       const prevG = (prev === audioA) ? gainA : gainB;
       
-      // Limpeza de eventos anteriores para evitar lógicas duplicadas
       audioA.onended = null; audioA.ontimeupdate = null;
       audioB.onended = null; audioB.ontimeupdate = null;
 
@@ -369,6 +375,10 @@
 
       currentIndex = i;
       activePlayer.src = URL.createObjectURL(item.file);
+      
+      // LOGICA DA CAPA DO ALBUM
+      updateAlbumArt(item.file);
+
       activePlayer.play();
       document.getElementById('current-title').textContent = item.file.name.replace(/\.[^/.]+$/, "");
       render();
@@ -380,7 +390,6 @@
         document.getElementById('time-current').textContent = formatTime(this.currentTime);
         document.getElementById('time-total').textContent = formatTime(this.duration);
         
-        // Transição P1 -> P3 (Overlap)
         if (item.isP1 && playlist[currentIndex+1]?.isP3 && !item.overlapStarted && (this.duration - this.currentTime <= 2.2)) {
           item.overlapStarted = true;
           play(currentIndex+1);
@@ -389,9 +398,38 @@
       activePlayer.onended = () => { if(!item.overlapStarted) play(currentIndex+1); };
     }
 
-    // NOVA LÓGICA: Hora Certa Isolada (Motor Blindado)
+    // Função para extrair a capa usando jsmediatags
+    function updateAlbumArt(file) {
+        const imgEl = document.getElementById('album-img');
+        const fallback = document.getElementById('fallback-icon');
+
+        if (!file) return;
+
+        jsmediatags.read(file, {
+            onSuccess: function(tag) {
+                const { tags } = tag;
+                if (tags.picture) {
+                    const { data, format } = tags.picture;
+                    let base64String = "";
+                    for (let i = 0; i < data.length; i++) {
+                        base64String += String.fromCharCode(data[i]);
+                    }
+                    imgEl.src = `data:${format};base64,${window.btoa(base64String)}`;
+                    imgEl.style.display = 'block';
+                    fallback.style.display = 'none';
+                } else {
+                    imgEl.style.display = 'none';
+                    fallback.style.display = 'block';
+                }
+            },
+            onError: function() {
+                imgEl.style.display = 'none';
+                fallback.style.display = 'block';
+            }
+        });
+    }
+
     async function runIsolatedHora(idx) {
-      // 1. Para tudo e limpa listeners
       audioA.pause(); audioB.pause();
       audioA.onended = null; audioA.ontimeupdate = null;
       audioB.onended = null; audioB.ontimeupdate = null;
@@ -405,12 +443,14 @@
       if (!fH) return play(idx + 1);
       
       currentIndex = idx; 
-      activePlayer = audioA; // Usa o player A como padrão para locução
+      activePlayer = audioA;
       gainA.gain.cancelScheduledValues(audioCtx.currentTime);
-      gainA.gain.setValueAtTime(1.5, audioCtx.currentTime); // Volume extra para voz
+      gainA.gain.setValueAtTime(1.5, audioCtx.currentTime);
       
       document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
       document.getElementById('progress-fill').style.width = "100%";
+      document.getElementById('album-img').style.display = 'none';
+      document.getElementById('fallback-icon').style.display = 'block';
 
       const playWait = (file) => new Promise(resolve => {
         activePlayer.src = URL.createObjectURL(file);
@@ -419,18 +459,16 @@
         activePlayer.play().catch(resolve);
       });
 
-      // Executa sequência blindada
       await playWait(fH);
       if (fM) {
         await new Promise(r => setTimeout(r, 400));
         await playWait(fM);
       }
       
-      await new Promise(r => setTimeout(r, 800)); // Respiro final
-      play(idx + 1); // Segue para a próxima
+      await new Promise(r => setTimeout(r, 800));
+      play(idx + 1);
     }
 
-    // BARRA DE PROGRESSO: Clique para navegar na música
     document.getElementById('prog-container').onclick = function(e) {
       if (currentIndex === -1 || !activePlayer.duration || isNaN(activePlayer.duration)) return;
       const rect = this.getBoundingClientRect();
