@@ -24,7 +24,15 @@
       margin: 0; 
       background: var(--bg-dark); 
       color: var(--text-main); 
-      height: 100vh; 
+      
+      /* 1. Define o tamanho real da tela como base */
+      width: 133.33vw; 
+      height: 133.33vh; 
+      
+      /* 2. Aplica o zoom de 75% (100 / 1.3333 = 75) */
+      transform: scale(0.75); 
+      transform-origin: 0 0; /* Fixa no canto superior esquerdo */
+      
       overflow: hidden; 
       display: flex;
       flex-direction: column;
@@ -50,7 +58,12 @@
 
     .nav-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
-    .main-layout { flex: 1; display: flex; overflow: hidden; }
+    .main-layout { 
+      flex: 1; 
+      display: flex; 
+      overflow: hidden;
+      width: 100%; /* Garante que preencha a largura total do corpo ampliado */
+    }
     #page-player { display: flex; flex: 1; width: 100%; }
 
     .player-zone { 
