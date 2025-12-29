@@ -106,23 +106,16 @@
         max-height: 300px; overflow-y: auto; display: none; border-radius: 0 0 8px 8px;
         box-shadow: 0 10px 20px rgba(0,0,0,0.5);
     }
-    .search-item { 
-        padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); 
-        display: flex; flex-direction: column; gap: 5px; cursor: default;
-    }
+    .search-item { padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 5px; cursor: default; }
     .search-item:hover { background: rgba(255,255,255,0.05); }
     .search-item-title { font-size: 0.8rem; font-weight: 600; color: #fff; }
     .search-item-actions { display: flex; gap: 8px; }
-    .mini-btn { 
-        font-size: 0.65rem; padding: 4px 8px; border-radius: 4px; border: none; 
-        cursor: pointer; font-weight: 700; text-transform: uppercase;
-    }
+    .mini-btn { font-size: 0.65rem; padding: 4px 8px; border-radius: 4px; border: none; cursor: pointer; font-weight: 700; text-transform: uppercase; }
     .btn-next { background: var(--accent); color: #000; }
     .btn-add { background: var(--primary); color: #000; }
 
     .track-item { padding: 12px 15px; border-radius: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.03); font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid transparent; }
     .track-item:hover { background: rgba(255,255,255,0.06); }
-    
     .delete-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 5px; display: flex; align-items: center; border-radius: 5px; }
     .delete-btn:hover { color: var(--danger); background: rgba(231, 76, 60, 0.1); }
 
@@ -257,11 +250,9 @@
     function handleMainDirectory(input) {
       musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
       const files = Array.from(input.files);
-      
       files.forEach(file => {
         const path = file.webkitRelativePath.toLowerCase();
         if (!file.type.startsWith('audio')) return;
-
         if (path.includes('/musicas/')) {
           const parts = file.webkitRelativePath.split('/');
           const mIdx = parts.findIndex(p => p.toLowerCase() === 'musicas');
@@ -270,15 +261,10 @@
             if (!musicLibrary[genre]) musicLibrary[genre] = [];
             musicLibrary[genre].push(file);
           }
-        } else if (path.includes('/vinhetas/')) {
-          filesP3.push(file);
-        } else if (path.includes('/hora/')) {
-          filesP4.push(file);
-        } else if (path.includes('/avisos/')) {
-          filesAds.push(file);
-        }
+        } else if (path.includes('/vinhetas/')) filesP3.push(file);
+        else if (path.includes('/hora/')) filesP4.push(file);
+        else if (path.includes('/avisos/')) filesAds.push(file);
       });
-
       updateStatusUI();
     }
 
@@ -286,13 +272,7 @@
       const stats = document.getElementById('status-pastas');
       const mCount = Object.keys(musicLibrary).length;
       stats.style.display = 'block';
-      stats.innerHTML = `
-        ${mCount > 0 ? '✅' : '❌'} Gêneros musicais: ${mCount}<br>
-        ${filesP3.length > 0 ? '✅' : '❌'} Vinhetas (P3): ${filesP3.length}<br>
-        ${filesP4.length > 0 ? '✅' : '❌'} Locuções Hora (P4): ${filesP4.length}<br>
-        ${filesAds.length > 0 ? '✅' : '❌'} Avisos (Ads): ${filesAds.length}
-      `;
-
+      stats.innerHTML = `${mCount > 0 ? '✅' : '❌'} Gêneros musicais: ${mCount}<br>${filesP3.length > 0 ? '✅' : '❌'} Vinhetas (P3): ${filesP3.length}<br>${filesP4.length > 0 ? '✅' : '❌'} Locuções Hora (P4): ${filesP4.length}<br>${filesAds.length > 0 ? '✅' : '❌'} Avisos (Ads): ${filesAds.length}`;
       if (mCount > 0) {
         document.getElementById('genre-settings').style.display = 'block';
         document.getElementById('build').style.display = 'block';
@@ -301,147 +281,82 @@
     }
 
     function generateGenreSliders() {
-      const container = document.getElementById('genre-list');
-      container.innerHTML = '';
-      const genres = Object.keys(musicLibrary);
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-
+      const container = document.getElementById('genre-list'); container.innerHTML = '';
+      const genres = Object.keys(musicLibrary), saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       genres.forEach(genre => {
         const val = saved[genre] !== undefined ? saved[genre] : Math.floor(100 / genres.length);
-        const row = document.createElement('div');
-        row.className = 'genre-row';
-        row.innerHTML = `
-          <span>${genre}</span>
-          <input type="range" class="genre-range" data-genre="${genre}" value="${val}" min="0" max="100" oninput="rebalance(this)">
-          <span class="percentage-label">${val}%</span>
-        `;
+        const row = document.createElement('div'); row.className = 'genre-row';
+        row.innerHTML = `<span>${genre}</span><input type="range" class="genre-range" data-genre="${genre}" value="${val}" min="0" max="100" oninput="rebalance(this)"><span class="percentage-label">${val}%</span>`;
         container.appendChild(row);
       });
     }
 
     function saveCurrentConfigs() {
-      const data = {};
-      document.querySelectorAll('.genre-range').forEach(i => data[i.dataset.genre] = i.value);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      alert("✅ Preset de gêneros salvo!");
+      const data = {}; document.querySelectorAll('.genre-range').forEach(i => data[i.dataset.genre] = i.value);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); alert("✅ Preset de gêneros salvo!");
     }
 
     function rebalance(changedInput) {
-      const all = Array.from(document.querySelectorAll('.genre-range'));
-      const changedValue = parseInt(changedInput.value);
-      const others = all.filter(i => i !== changedInput);
-      const totalOthers = 100 - changedValue;
-      const currentSumOthers = others.reduce((s, i) => s + parseInt(i.value), 0);
-
+      const all = Array.from(document.querySelectorAll('.genre-range')), changedValue = parseInt(changedInput.value), others = all.filter(i => i !== changedInput);
+      const totalOthers = 100 - changedValue, currentSumOthers = others.reduce((s, i) => s + parseInt(i.value), 0);
       others.forEach(i => {
         const ratio = currentSumOthers > 0 ? parseInt(i.value) / currentSumOthers : 1 / others.length;
-        i.value = Math.round(ratio * totalOthers);
-        i.nextElementSibling.textContent = i.value + '%';
+        i.value = Math.round(ratio * totalOthers); i.nextElementSibling.textContent = i.value + '%';
       });
       changedInput.nextElementSibling.textContent = changedInput.value + '%';
     }
 
     document.getElementById('build').onclick = () => {
-      const MAX = 300;
-      let pool = [];
+      const MAX = 300; let pool = [];
       document.querySelectorAll('.genre-range').forEach(input => {
-        const genre = input.dataset.genre;
-        const count = Math.round(MAX * (parseInt(input.value) / 100));
+        const genre = input.dataset.genre, count = Math.round(MAX * (parseInt(input.value) / 100));
         if (count > 0 && musicLibrary[genre]) {
           let s = Array.from(musicLibrary[genre]).sort(() => Math.random() - 0.5).slice(0, count);
           pool.push(...s.map(f => ({ file: f, isP1: true })));
         }
       });
-
       pool.sort(() => Math.random() - 0.5).slice(0, MAX);
       let p3 = Array.from(filesP3).sort(() => Math.random() - 0.5);
-      playlist = [];
-      let count = 0, ptr3 = 0;
-
+      playlist = []; let count = 0, ptr3 = 0;
       pool.forEach(m => {
-        playlist.push(m);
-        count++;
+        playlist.push(m); count++;
         if (count % 2 === 0 && filesP4.length) playlist.push({ isHoraDinamica: true });
-        if (p3.length) {
-          playlist.push({ file: p3[ptr3 % p3.length], isP3: true });
-          ptr3++;
-        }
+        if (p3.length) { playlist.push({ file: p3[ptr3 % p3.length], isP3: true }); ptr3++; }
       });
-
-      currentIndex = -1;
-      showPage('player');
-      play(0);
+      currentIndex = -1; showPage('player'); play(0);
     };
 
     function searchMusic(query) {
         const resDiv = document.getElementById('search-results');
         if (!query || query.length < 2) { resDiv.style.display = 'none'; return; }
-        
         let found = [];
-        Object.values(musicLibrary).flat().forEach(file => {
-            if (file.name.toLowerCase().includes(query.toLowerCase())) {
-                found.push(file);
-            }
-        });
-
+        Object.values(musicLibrary).flat().forEach(file => { if (file.name.toLowerCase().includes(query.toLowerCase())) found.push(file); });
         if (found.length) {
             resDiv.style.display = 'block';
-            resDiv.innerHTML = found.slice(0, 10).map((file, i) => `
-                <div class="search-item">
-                    <div class="search-item-title">${file.name}</div>
-                    <div class="search-item-actions">
-                        <button class="mini-btn btn-next" onclick="addToPlaylist('${file.name}', true)">Tocar como Próxima</button>
-                        <button class="mini-btn btn-add" onclick="addToPlaylist('${file.name}', false)">Add às Próximas 5</button>
-                    </div>
-                </div>
-            `).join('');
-        } else {
-            resDiv.style.display = 'none';
-        }
+            resDiv.innerHTML = found.slice(0, 10).map((file, i) => `<div class="search-item"><div class="search-item-title">${file.name}</div><div class="search-item-actions"><button class="mini-btn btn-next" onclick="addToPlaylist('${file.name}', true)">Tocar como Próxima</button><button class="mini-btn btn-add" onclick="addToPlaylist('${file.name}', false)">Add às Próximas 5</button></div></div>`).join('');
+        } else resDiv.style.display = 'none';
     }
 
     function addToPlaylist(fileName, isNext) {
-        let file = null;
-        Object.values(musicLibrary).flat().forEach(f => { if(f.name === fileName) file = f; });
+        let file = null; Object.values(musicLibrary).flat().forEach(f => { if(f.name === fileName) file = f; });
         if(!file) return;
-
-        // Criar o bloco completo para a nova música
         const block = [{ file: file, isP1: true }];
-        if (filesP3.length) {
-            block.push({ file: filesP3[Math.floor(Math.random() * filesP3.length)], isP3: true });
-        }
-        if (filesP4.length && Math.random() > 0.5) {
-            block.push({ isHoraDinamica: true });
-        }
-
-        // Função para achar o fim do bloco de uma música na posição X
+        if (filesP3.length) block.push({ file: filesP3[Math.floor(Math.random() * filesP3.length)], isP3: true });
+        if (filesP4.length && Math.random() > 0.5) block.push({ isHoraDinamica: true });
         function findEndOfBlock(startIndex) {
             let end = startIndex;
-            for (let i = startIndex + 1; i < playlist.length; i++) {
-                if (playlist[i] && !playlist[i].isP1) end = i;
-                else break;
-            }
+            for (let i = startIndex + 1; i < playlist.length; i++) { if (playlist[i] && !playlist[i].isP1) end = i; else break; }
             return end;
         }
-
         let insertPos;
-        if (isNext) {
-            // Se "Tocar Próxima", pula a música atual e todos os itens (vinheta/hora) atrelados a ela
-            insertPos = findEndOfBlock(currentIndex) + 1;
-        } else {
-            // Se "Próximas 5", pula 5 músicas e seus respectivos blocos
-            let musicCount = 0;
-            let currentCheck = currentIndex;
-            while (musicCount < 5 && currentCheck < playlist.length - 1) {
-                currentCheck = findEndOfBlock(currentCheck + 1);
-                musicCount++;
-            }
+        if (isNext) insertPos = findEndOfBlock(currentIndex) + 1;
+        else {
+            let musicCount = 0, currentCheck = currentIndex;
+            while (musicCount < 5 && currentCheck < playlist.length - 1) { currentCheck = findEndOfBlock(currentCheck + 1); musicCount++; }
             insertPos = currentCheck + 1;
         }
-
         playlist.splice(insertPos, 0, ...block);
-        document.getElementById('musicSearch').value = '';
-        document.getElementById('search-results').style.display = 'none';
+        document.getElementById('musicSearch').value = ''; document.getElementById('search-results').style.display = 'none';
         render();
     }
 
@@ -449,15 +364,9 @@
       if (i < 0 || i >= playlist.length) return;
       if (audioCtx.state === 'suspended') await audioCtx.resume();
       let item = playlist[i];
-
       if (item.isHoraDinamica) { runIsolatedHora(i); return; }
-
-      const prev = activePlayer; 
-      const prevG = (prev === audioA) ? gainA : gainB;
-      
-      audioA.onended = null; audioA.ontimeupdate = null;
-      audioB.onended = null; audioB.ontimeupdate = null;
-
+      const prev = activePlayer, prevG = (prev === audioA) ? gainA : gainB;
+      audioA.onended = null; audioA.ontimeupdate = null; audioB.onended = null; audioB.ontimeupdate = null;
       if (isManual || (playlist[currentIndex]?.isP1 && item.isP3)) {
         activePlayer = (prev === audioA) ? audioB : audioA;
         const curG = (activePlayer === audioA) ? gainA : gainB;
@@ -465,35 +374,24 @@
         if (isManual) {
           prevG.gain.setTargetAtTime(0, audioCtx.currentTime, 1.2);
           setTimeout(() => { if (prev.src) prev.pause(); }, 4500);
-          curG.gain.setValueAtTime(0, audioCtx.currentTime);
-          curG.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 4);
-        } else {
-          curG.gain.setValueAtTime(1, audioCtx.currentTime);
-        }
+          curG.gain.setValueAtTime(0, audioCtx.currentTime); curG.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 4);
+        } else curG.gain.setValueAtTime(1, audioCtx.currentTime);
       } else {
-        audioA.pause(); audioB.pause();
-        activePlayer = audioA;
-        gainA.gain.setValueAtTime(0, audioCtx.currentTime);
-        gainA.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 1.5);
+        audioA.pause(); audioB.pause(); activePlayer = audioA;
+        gainA.gain.setValueAtTime(0, audioCtx.currentTime); gainA.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 1.5);
       }
-
-      currentIndex = i;
-      activePlayer.src = URL.createObjectURL(item.file);
-      updateAlbumArt(item.file);
-      activePlayer.play();
+      currentIndex = i; activePlayer.src = URL.createObjectURL(item.file);
+      updateAlbumArt(item.file); activePlayer.play();
       document.getElementById('current-title').textContent = item.file.name.replace(/\.[^/.]+$/, "");
       render();
-
       activePlayer.ontimeupdate = function() {
         if(this !== activePlayer) return;
         const pct = (this.currentTime / this.duration * 100);
         document.getElementById('progress-fill').style.width = pct + "%";
         document.getElementById('time-current').textContent = formatTime(this.currentTime);
         document.getElementById('time-total').textContent = formatTime(this.duration);
-        
         if (item.isP1 && playlist[currentIndex+1]?.isP3 && !item.overlapStarted && (this.duration - this.currentTime <= 2.2)) {
-          item.overlapStarted = true;
-          play(currentIndex+1);
+          item.overlapStarted = true; play(currentIndex+1);
         }
       };
       activePlayer.onended = () => { if(!item.overlapStarted) play(currentIndex+1); };
@@ -506,8 +404,7 @@
             onSuccess: function(tag) {
                 if (tag.tags.picture) {
                     const { data, format } = tag.tags.picture;
-                    let base64String = "";
-                    for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
+                    let base64String = ""; for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
                     imgEl.src = `data:${format};base64,${window.btoa(base64String)}`;
                     imgEl.style.display = 'block'; fallback.style.display = 'none';
                 } else { imgEl.style.display = 'none'; fallback.style.display = 'block'; }
@@ -518,26 +415,53 @@
 
     async function runIsolatedHora(idx) {
       audioA.pause(); audioB.pause();
-      audioA.onended = null; audioA.ontimeupdate = null;
-      audioB.onended = null; audioB.ontimeupdate = null;
+      audioA.onended = null; audioA.ontimeupdate = null; audioB.onended = null; audioB.ontimeupdate = null;
       const now = new Date();
       const hStr = "HRS" + now.getHours().toString().padStart(2, '0');
       const mStr = "MIN" + now.getMinutes().toString().padStart(2, '0');
-      const fH = filesP4.find(f => f.name.toUpperCase().includes(hStr));
-      const fM = filesP4.find(f => f.name.toUpperCase().includes(mStr));
+      const fH = filesP4.find(f => f.name.toUpperCase().includes(hStr)), fM = filesP4.find(f => f.name.toUpperCase().includes(mStr));
       if (!fH) return play(idx + 1);
-      currentIndex = idx; activePlayer = audioA;
-      gainA.gain.setValueAtTime(1.5, audioCtx.currentTime);
+      currentIndex = idx; activePlayer = audioA; gainA.gain.setValueAtTime(1.5, audioCtx.currentTime);
       document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
-      const playWait = (file) => new Promise(resolve => {
-        activePlayer.src = URL.createObjectURL(file);
-        activePlayer.onended = resolve; activePlayer.play().catch(resolve);
-      });
-      await playWait(fH);
-      if (fM) { await new Promise(r => setTimeout(r, 400)); await playWait(fM); }
-      await new Promise(r => setTimeout(r, 800));
-      play(idx + 1);
+      const playWait = (file) => new Promise(resolve => { activePlayer.src = URL.createObjectURL(file); activePlayer.onended = resolve; activePlayer.play().catch(resolve); });
+      await playWait(fH); if (fM) { await new Promise(r => setTimeout(r, 400)); await playWait(fM); }
+      await new Promise(r => setTimeout(r, 800)); play(idx + 1);
     }
+
+    // --- CORREÇÃO DO SISTEMA DE AVISO PÃO ---
+    document.getElementById('playAd').onclick = async () => {
+      if (!filesAds.length || isAdPlaying) return;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      
+      isAdPlaying = true;
+      const curG = (activePlayer === audioA) ? gainA : gainB;
+      
+      // Ducking: Abaixa o som da música atual
+      curG.gain.cancelScheduledValues(audioCtx.currentTime);
+      curG.gain.setTargetAtTime(0.15, audioCtx.currentTime, 0.5);
+      
+      let count = 0;
+      gainAds.gain.setValueAtTime(3.0, audioCtx.currentTime);
+
+      function runNextAd() {
+        if (count < 2) {
+          // Escolhe um aviso aleatório da pasta /avisos/
+          const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
+          audioAds.src = URL.createObjectURL(randomAd);
+          audioAds.play();
+          
+          audioAds.onended = () => {
+            count++;
+            setTimeout(runNextAd, 500); // Intervalo entre os dois avisos
+          };
+        } else {
+          // Restaura volume da rádio
+          curG.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 1.5);
+          isAdPlaying = false;
+        }
+      }
+      runNextAd();
+    };
 
     document.getElementById('prog-container').onclick = function(e) {
       if (currentIndex === -1 || !activePlayer.duration) return;
@@ -550,28 +474,15 @@
       const future = playlist.map((item, idx) => ({ ...item, originalIdx: idx }))
         .slice(currentIndex + 1).filter(it => it.isP1).slice(0, 5);
       if (!future.length) { el.innerHTML = '<div style="text-align:center; padding:20px; color:#555">Fim da lista</div>'; return; }
-      el.innerHTML = future.map(it => `
-        <div class="track-item">
-          <div style="display: flex; align-items: center; overflow: hidden; white-space: nowrap;">
-            <span style="opacity:0.5; margin-right:10px; font-size:0.7rem;">PRÓXIMA</span>
-            <div style="overflow: hidden; text-overflow: ellipsis;">${it.file.name.substring(0,35)}</div>
-          </div>
-          <button class="delete-btn" onclick="removeFromPlaylist(${it.originalIdx})">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-          </button>
-        </div>
-      `).join('');
+      el.innerHTML = future.map(it => `<div class="track-item"><div style="display: flex; align-items: center; overflow: hidden; white-space: nowrap;"><span style="opacity:0.5; margin-right:10px; font-size:0.7rem;">PRÓXIMA</span><div style="overflow: hidden; text-overflow: ellipsis;">${it.file.name.substring(0,35)}</div></div><button class="delete-btn" onclick="removeFromPlaylist(${it.originalIdx})"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>`).join('');
     }
 
     function removeFromPlaylist(index) {
         if (playlist[index]?.isP1) {
             let count = 1;
-            for (let i = index + 1; i < playlist.length; i++) {
-                if (!playlist[i].isP1) count++;
-                else break;
-            }
+            for (let i = index + 1; i < playlist.length; i++) { if (!playlist[i].isP1) count++; else break; }
             playlist.splice(index, count);
-        } else { playlist.splice(index, 1); }
+        } else playlist.splice(index, 1);
         render();
     }
 
@@ -590,8 +501,7 @@
       g.addColorStop(0, "rgba(243, 156, 18, 0)"); g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
       const barW = (canvas.width / data.length) * 2;
       for(let i=0; i<data.length; i++) {
-        let h = data[i] * (canvas.height / 255); ctx.fillStyle = g;
-        ctx.fillRect(i*(barW+2), canvas.height - h, barW, h);
+        let h = data[i] * (canvas.height / 255); ctx.fillStyle = g; ctx.fillRect(i*(barW+2), canvas.height - h, barW, h);
       }
     }
     draw();
