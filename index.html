@@ -98,7 +98,6 @@
     .sidebar { width: 420px; background: var(--sidebar-bg); border-left: 1px solid rgba(255,255,255,0.05); padding: 25px; display: flex; flex-direction: column; }
     .sidebar h4 { color: var(--text-dim); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 2px; margin-bottom: 15px; margin-top: 20px; }
 
-    /* Search Styles */
     .search-box { position: relative; margin-bottom: 10px; }
     .search-input { width: 100%; background: #0f1115; border: 1px solid #3d4451; padding: 12px; border-radius: 8px; color: #fff; font-size: 0.85rem; }
     .search-results { 
@@ -374,7 +373,6 @@
       play(0);
     };
 
-    // --- SEARCH LOGIC ---
     function searchMusic(query) {
         const resDiv = document.getElementById('search-results');
         if (!query || query.length < 2) { resDiv.style.display = 'none'; return; }
@@ -407,21 +405,46 @@
         Object.values(musicLibrary).flat().forEach(f => { if(f.name === fileName) file = f; });
         if(!file) return;
 
-        const newItem = { file: file, isP1: true };
-        
-        if (isNext) {
-            playlist.splice(currentIndex + 1, 0, newItem);
-        } else {
-            // Adiciona no final da visão atual (dentro do range das próximas 5)
-            playlist.splice(currentIndex + 6, 0, newItem);
+        // Criar o bloco completo para a nova música
+        const block = [{ file: file, isP1: true }];
+        if (filesP3.length) {
+            block.push({ file: filesP3[Math.floor(Math.random() * filesP3.length)], isP3: true });
         }
-        
+        if (filesP4.length && Math.random() > 0.5) {
+            block.push({ isHoraDinamica: true });
+        }
+
+        // Função para achar o fim do bloco de uma música na posição X
+        function findEndOfBlock(startIndex) {
+            let end = startIndex;
+            for (let i = startIndex + 1; i < playlist.length; i++) {
+                if (playlist[i] && !playlist[i].isP1) end = i;
+                else break;
+            }
+            return end;
+        }
+
+        let insertPos;
+        if (isNext) {
+            // Se "Tocar Próxima", pula a música atual e todos os itens (vinheta/hora) atrelados a ela
+            insertPos = findEndOfBlock(currentIndex) + 1;
+        } else {
+            // Se "Próximas 5", pula 5 músicas e seus respectivos blocos
+            let musicCount = 0;
+            let currentCheck = currentIndex;
+            while (musicCount < 5 && currentCheck < playlist.length - 1) {
+                currentCheck = findEndOfBlock(currentCheck + 1);
+                musicCount++;
+            }
+            insertPos = currentCheck + 1;
+        }
+
+        playlist.splice(insertPos, 0, ...block);
         document.getElementById('musicSearch').value = '';
         document.getElementById('search-results').style.display = 'none';
         render();
     }
 
-    // --- PLAYER ENGINE ---
     async function play(i, isManual = false) {
       if (i < 0 || i >= playlist.length) return;
       if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -456,9 +479,7 @@
 
       currentIndex = i;
       activePlayer.src = URL.createObjectURL(item.file);
-      
       updateAlbumArt(item.file);
-
       activePlayer.play();
       document.getElementById('current-title').textContent = item.file.name.replace(/\.[^/.]+$/, "");
       render();
@@ -479,31 +500,19 @@
     }
 
     function updateAlbumArt(file) {
-        const imgEl = document.getElementById('album-img');
-        const fallback = document.getElementById('fallback-icon');
+        const imgEl = document.getElementById('album-img'), fallback = document.getElementById('fallback-icon');
         if (!file) return;
-
         jsmediatags.read(file, {
             onSuccess: function(tag) {
-                const { tags } = tag;
-                if (tags.picture) {
-                    const { data, format } = tags.picture;
+                if (tag.tags.picture) {
+                    const { data, format } = tag.tags.picture;
                     let base64String = "";
-                    for (let i = 0; i < data.length; i++) {
-                        base64String += String.fromCharCode(data[i]);
-                    }
+                    for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
                     imgEl.src = `data:${format};base64,${window.btoa(base64String)}`;
-                    imgEl.style.display = 'block';
-                    fallback.style.display = 'none';
-                } else {
-                    imgEl.style.display = 'none';
-                    fallback.style.display = 'block';
-                }
+                    imgEl.style.display = 'block'; fallback.style.display = 'none';
+                } else { imgEl.style.display = 'none'; fallback.style.display = 'block'; }
             },
-            onError: function() {
-                imgEl.style.display = 'none';
-                fallback.style.display = 'block';
-            }
+            onError: function() { imgEl.style.display = 'none'; fallback.style.display = 'block'; }
         });
     }
 
@@ -511,71 +520,43 @@
       audioA.pause(); audioB.pause();
       audioA.onended = null; audioA.ontimeupdate = null;
       audioB.onended = null; audioB.ontimeupdate = null;
-      
       const now = new Date();
       const hStr = "HRS" + now.getHours().toString().padStart(2, '0');
       const mStr = "MIN" + now.getMinutes().toString().padStart(2, '0');
       const fH = filesP4.find(f => f.name.toUpperCase().includes(hStr));
       const fM = filesP4.find(f => f.name.toUpperCase().includes(mStr));
-      
       if (!fH) return play(idx + 1);
-      
-      currentIndex = idx; 
-      activePlayer = audioA;
-      gainA.gain.cancelScheduledValues(audioCtx.currentTime);
+      currentIndex = idx; activePlayer = audioA;
       gainA.gain.setValueAtTime(1.5, audioCtx.currentTime);
-      
       document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
-      document.getElementById('progress-fill').style.width = "100%";
-      document.getElementById('album-img').style.display = 'none';
-      document.getElementById('fallback-icon').style.display = 'block';
-
       const playWait = (file) => new Promise(resolve => {
         activePlayer.src = URL.createObjectURL(file);
-        activePlayer.onended = resolve;
-        activePlayer.onerror = resolve;
-        activePlayer.play().catch(resolve);
+        activePlayer.onended = resolve; activePlayer.play().catch(resolve);
       });
-
       await playWait(fH);
-      if (fM) {
-        await new Promise(r => setTimeout(r, 400));
-        await playWait(fM);
-      }
-      
+      if (fM) { await new Promise(r => setTimeout(r, 400)); await playWait(fM); }
       await new Promise(r => setTimeout(r, 800));
       play(idx + 1);
     }
 
     document.getElementById('prog-container').onclick = function(e) {
-      if (currentIndex === -1 || !activePlayer.duration || isNaN(activePlayer.duration)) return;
-      const rect = this.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const pct = x / rect.width;
+      if (currentIndex === -1 || !activePlayer.duration) return;
+      const pct = (e.clientX - this.getBoundingClientRect().left) / this.getBoundingClientRect().width;
       activePlayer.currentTime = pct * activePlayer.duration;
     };
 
     function render() {
       const el = document.getElementById('playlist');
-      
-      const future = playlist
-        .map((item, idx) => ({ ...item, originalIdx: idx }))
-        .slice(currentIndex + 1)
-        .filter(it => it.isP1)
-        .slice(0, 5);
-
-      if (!future.length) {
-        el.innerHTML = '<div style="text-align:center; padding:20px; color:#555">Fim da lista</div>';
-        return;
-      }
-
+      const future = playlist.map((item, idx) => ({ ...item, originalIdx: idx }))
+        .slice(currentIndex + 1).filter(it => it.isP1).slice(0, 5);
+      if (!future.length) { el.innerHTML = '<div style="text-align:center; padding:20px; color:#555">Fim da lista</div>'; return; }
       el.innerHTML = future.map(it => `
         <div class="track-item">
           <div style="display: flex; align-items: center; overflow: hidden; white-space: nowrap;">
-            <span style="opacity:0.5; margin-right:10px; font-size:0.7rem; flex-shrink: 0;">PRÓXIMA</span>
+            <span style="opacity:0.5; margin-right:10px; font-size:0.7rem;">PRÓXIMA</span>
             <div style="overflow: hidden; text-overflow: ellipsis;">${it.file.name.substring(0,35)}</div>
           </div>
-          <button class="delete-btn" onclick="removeFromPlaylist(${it.originalIdx})" title="Remover da lista">
+          <button class="delete-btn" onclick="removeFromPlaylist(${it.originalIdx})">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
           </button>
         </div>
@@ -583,32 +564,21 @@
     }
 
     function removeFromPlaylist(index) {
-      playlist.splice(index, 1);
-      render();
+        if (playlist[index]?.isP1) {
+            let count = 1;
+            for (let i = index + 1; i < playlist.length; i++) {
+                if (!playlist[i].isP1) count++;
+                else break;
+            }
+            playlist.splice(index, count);
+        } else { playlist.splice(index, 1); }
+        render();
     }
 
     function formatTime(t) { if (isNaN(t)) return "00:00"; const m = Math.floor(t/60), s = Math.floor(t%60); return `${m}:${s<10?'0':''}${s}`; }
-    
     document.getElementById('playPause').onclick = () => { if (currentIndex === -1) play(0); else activePlayer.paused ? activePlayer.play() : activePlayer.pause(); };
     document.getElementById('nextBtn').onclick = () => play(currentIndex+1, true);
     
-    document.getElementById('playAd').onclick = () => {
-      if(!filesAds.length || isAdPlaying) return;
-      isAdPlaying = true; let c = 0; const curG = (activePlayer===audioA)?gainA:gainB;
-      curG.gain.setTargetAtTime(0.2, audioCtx.currentTime, 0.5);
-      function runAd() { 
-        if(c < 2) { 
-          audioAds.src = URL.createObjectURL(filesAds[0]); 
-          audioAds.play(); 
-          audioAds.onended = () => { c++; setTimeout(runAd, 400); }; 
-        } else { 
-          curG.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 1.5); 
-          isAdPlaying = false; 
-        } 
-      }
-      runAd();
-    };
-
     const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
     function draw() {
       requestAnimationFrame(draw);
@@ -625,13 +595,7 @@
       }
     }
     draw();
-
-    // Fecha os resultados ao clicar fora
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-box')) {
-            document.getElementById('search-results').style.display = 'none';
-        }
-    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.search-box')) document.getElementById('search-results').style.display = 'none'; });
   </script>
 </body>
 </html>
