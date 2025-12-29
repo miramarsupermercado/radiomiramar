@@ -602,7 +602,7 @@
                 const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
                 audioAds.src = URL.createObjectURL(randomAd);
                 gainAds.gain.setValueAtTime(2.0, audioCtx.currentTime); // Volume forte
-                audioAds.onended = () => { adCount++; setTimeout(playAdSequence, 600); };
+                audioAds.onended = () => { adCount++; setTimeout(playAdSequence, 100); };
                 audioAds.play();
             } else {
                 currentGain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 1.5);
@@ -633,3 +633,4 @@
   </script>
 </body>
 </html>
+
