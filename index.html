@@ -229,8 +229,9 @@
 
   <audio id="audioA"></audio><audio id="audioB"></audio><audio id="audioAds"></audio>
 
-  <script>
+<script>
     const STORAGE_KEY = 'MIRAMAR_PRO_CONFIGS';
+    const STATE_KEY = 'MIRAMAR_PLAYER_STATE'; // Chave para persistência
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const compressor = audioCtx.createDynamicsCompressor();
     compressor.threshold.setValueAtTime(-24, audioCtx.currentTime);
@@ -253,6 +254,15 @@
 
     let playlist = [], currentIndex = -1, activePlayer = audioA, isAdPlaying = false;
     let musicLibrary = {}, filesP3 = [], filesP4 = [], filesAds = [];
+    let objectUrls = []; // Controle de cache de memória
+
+    // Função auxiliar para gerenciar memória de Blobs (Melhoria 1)
+    function createSafeUrl(file) {
+        if (objectUrls.length > 10) URL.revokeObjectURL(objectUrls.shift());
+        const url = URL.createObjectURL(file);
+        objectUrls.push(url);
+        return url;
+    }
 
     function showPage(p) {
       document.getElementById('page-player').style.display = (p === 'player') ? 'flex' : 'none';
@@ -351,17 +361,34 @@
     document.getElementById('build').onclick = () => {
       const MAX = 300;
       let pool = [];
+
+      // Função de embaralhamento robusta (Fisher-Yates) para evitar repetição
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      }
+
       document.querySelectorAll('.genre-range').forEach(input => {
         const genre = input.dataset.genre;
-        const count = Math.round(MAX * (parseInt(input.value) / 100));
-        if (count > 0 && musicLibrary[genre]) {
-          let s = Array.from(musicLibrary[genre]).sort(() => Math.random() - 0.5).slice(0, count);
-          pool.push(...s.map(f => ({ file: f, isP1: true })));
+        const countNeeded = Math.round(MAX * (parseInt(input.value) / 100));
+        if (countNeeded > 0 && musicLibrary[genre]) {
+          // Embaralha as músicas do gênero e pega apenas as necessárias sem repetir
+          let genrePool = shuffle([...musicLibrary[genre]]);
+          let selected = genrePool.slice(0, countNeeded);
+          pool.push(...selected.map(f => ({ file: f, isP1: true })));
         }
       });
 
-      pool.sort(() => Math.random() - 0.5).slice(0, MAX);
-      let p3 = Array.from(filesP3).sort(() => Math.random() - 0.5);
+      // Embaralha o pool final para misturar os gêneros
+      shuffle(pool);
+      pool = pool.slice(0, MAX);
+      
+      let p3 = Array.from(filesP3);
+      if (p3.length) shuffle(p3); // Embaralha as vinhetas iniciais
+
       playlist = [];
       let count = 0, ptr3 = 0;
 
@@ -412,7 +439,6 @@
         Object.values(musicLibrary).flat().forEach(f => { if(f.name === fileName) file = f; });
         if(!file) return;
 
-        // Criar o bloco completo para a nova música
         const block = [{ file: file, isP1: true }];
         if (filesP3.length) {
             block.push({ file: filesP3[Math.floor(Math.random() * filesP3.length)], isP3: true });
@@ -421,7 +447,6 @@
             block.push({ isHoraDinamica: true });
         }
 
-        // Função para achar o fim do bloco de uma música na posição X
         function findEndOfBlock(startIndex) {
             let end = startIndex;
             for (let i = startIndex + 1; i < playlist.length; i++) {
@@ -433,10 +458,8 @@
 
         let insertPos;
         if (isNext) {
-            // Se "Tocar Próxima", pula a música atual e todos os itens (vinheta/hora) atrelados a ela
             insertPos = findEndOfBlock(currentIndex) + 1;
         } else {
-            // Se "Próximas 5", pula 5 músicas e seus respectivos blocos
             let musicCount = 0;
             let currentCheck = currentIndex;
             while (musicCount < 5 && currentCheck < playlist.length - 1) {
@@ -485,9 +508,19 @@
       }
 
       currentIndex = i;
-      activePlayer.src = URL.createObjectURL(item.file);
-      updateAlbumArt(item.file);
-      activePlayer.play();
+      
+      try {
+          activePlayer.src = createSafeUrl(item.file);
+          updateAlbumArt(item.file);
+          activePlayer.play().catch(e => {
+              console.error("Erro ao reproduzir:", e);
+              play(currentIndex + 1);
+          });
+          localStorage.setItem(STATE_KEY, JSON.stringify({ index: i }));
+      } catch (err) {
+          play(currentIndex + 1);
+      }
+
       document.getElementById('current-title').textContent = item.file.name.replace(/\.[^/.]+$/, "");
       render();
 
@@ -506,9 +539,18 @@
       activePlayer.onended = () => { if(!item.overlapStarted) play(currentIndex+1); };
     }
 
+    window.onload = () => {
+        const lastState = JSON.parse(localStorage.getItem(STATE_KEY));
+        if (lastState && lastState.index !== undefined) {
+            console.log("Sistema pronto para retomar do índice: " + lastState.index);
+        }
+    };
+
     function updateAlbumArt(file) {
         const imgEl = document.getElementById('album-img'), fallback = document.getElementById('fallback-icon');
         if (!file) return;
+        if (typeof jsmediatags === 'undefined') return;
+        
         jsmediatags.read(file, {
             onSuccess: function(tag) {
                 if (tag.tags.picture) {
@@ -537,7 +579,7 @@
       gainA.gain.setValueAtTime(1.5, audioCtx.currentTime);
       document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
       const playWait = (file) => new Promise(resolve => {
-        activePlayer.src = URL.createObjectURL(file);
+        activePlayer.src = createSafeUrl(file);
         activePlayer.onended = resolve; activePlayer.play().catch(resolve);
       });
       await playWait(fH);
@@ -586,13 +628,11 @@
     document.getElementById('playPause').onclick = () => { if (currentIndex === -1) play(0); else activePlayer.paused ? activePlayer.play() : activePlayer.pause(); };
     document.getElementById('nextBtn').onclick = () => play(currentIndex+1, true);
     
-    // --- CORREÇÃO DA REPRODUÇÃO DO BOTÃO AVISO ---
     document.getElementById('playAd').onclick = async () => {
         if (!filesAds.length || isAdPlaying) return;
         if (audioCtx.state === 'suspended') await audioCtx.resume();
         isAdPlaying = true;
 
-        // Efeito Ducking (abaixa volume da música)
         const currentGain = (activePlayer === audioA) ? gainA : gainB;
         currentGain.gain.setTargetAtTime(0.2, audioCtx.currentTime, 0.5);
 
@@ -600,8 +640,8 @@
         function playAdSequence() {
             if (adCount < 2) {
                 const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
-                audioAds.src = URL.createObjectURL(randomAd);
-                gainAds.gain.setValueAtTime(2.0, audioCtx.currentTime); // Volume forte
+                audioAds.src = createSafeUrl(randomAd);
+                gainAds.gain.setValueAtTime(2.0, audioCtx.currentTime);
                 audioAds.onended = () => { adCount++; setTimeout(playAdSequence, 100); };
                 audioAds.play();
             } else {
@@ -611,7 +651,6 @@
         }
         playAdSequence();
     };
-    // ---------------------------------------------
 
     const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
     function draw() {
@@ -630,7 +669,6 @@
     }
     draw();
     document.addEventListener('click', (e) => { if (!e.target.closest('.search-box')) document.getElementById('search-results').style.display = 'none'; });
-  </script>
+</script>
 </body>
 </html>
-
