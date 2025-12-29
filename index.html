@@ -233,15 +233,26 @@
     const STORAGE_KEY = 'MIRAMAR_PRO_CONFIGS';
     const STATE_KEY = 'MIRAMAR_PLAYER_STATE'; // Chave para persistência
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // --- CONFIGURAÇÃO DE NIVELAMENTO AUTOMÁTICO (AGC) ---
     const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.setValueAtTime(-24, audioCtx.currentTime);
-    compressor.knee.setValueAtTime(30, audioCtx.currentTime);
+    // Threshold baixo (-40) garante que mesmo músicas baixas entrem no processamento
+    compressor.threshold.setValueAtTime(-40, audioCtx.currentTime);
+    // Knee alto (40) suaviza a compressão para não soar artificial
+    compressor.knee.setValueAtTime(40, audioCtx.currentTime);
+    // Ratio alto (12) achata os picos das músicas barulhentas
     compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
-    compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+    compressor.attack.setValueAtTime(0.01, audioCtx.currentTime);
     compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
 
     const analyser = audioCtx.createAnalyser();
+    
+    // Ganhos elevados (1.5) para "puxar" o volume base para cima antes do compressor
     const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain();
+    gainA.gain.value = 1.5; 
+    gainB.gain.value = 1.5;
+    gainAds.gain.value = 1.5;
+
     const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds');
     
     audioCtx.createMediaElementSource(audioA).connect(gainA).connect(analyser);
@@ -256,7 +267,6 @@
     let musicLibrary = {}, filesP3 = [], filesP4 = [], filesAds = [];
     let objectUrls = []; // Controle de cache de memória
 
-    // Função auxiliar para gerenciar memória de Blobs (Melhoria 1)
     function createSafeUrl(file) {
         if (objectUrls.length > 10) URL.revokeObjectURL(objectUrls.shift());
         const url = URL.createObjectURL(file);
@@ -362,7 +372,6 @@
       const MAX = 300;
       let pool = [];
 
-      // Função de embaralhamento robusta (Fisher-Yates) para evitar repetição
       function shuffle(array) {
         for (let i = array.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -375,19 +384,17 @@
         const genre = input.dataset.genre;
         const countNeeded = Math.round(MAX * (parseInt(input.value) / 100));
         if (countNeeded > 0 && musicLibrary[genre]) {
-          // Embaralha as músicas do gênero e pega apenas as necessárias sem repetir
           let genrePool = shuffle([...musicLibrary[genre]]);
           let selected = genrePool.slice(0, countNeeded);
           pool.push(...selected.map(f => ({ file: f, isP1: true })));
         }
       });
 
-      // Embaralha o pool final para misturar os gêneros
       shuffle(pool);
       pool = pool.slice(0, MAX);
       
       let p3 = Array.from(filesP3);
-      if (p3.length) shuffle(p3); // Embaralha as vinhetas iniciais
+      if (p3.length) shuffle(p3);
 
       playlist = [];
       let count = 0, ptr3 = 0;
@@ -488,6 +495,7 @@
       audioA.onended = null; audioA.ontimeupdate = null;
       audioB.onended = null; audioB.ontimeupdate = null;
 
+      // Crossfade considerando o novo ganho de nivelamento (1.5)
       if (isManual || (playlist[currentIndex]?.isP1 && item.isP3)) {
         activePlayer = (prev === audioA) ? audioB : audioA;
         const curG = (activePlayer === audioA) ? gainA : gainB;
@@ -496,15 +504,15 @@
           prevG.gain.setTargetAtTime(0, audioCtx.currentTime, 1.2);
           setTimeout(() => { if (prev.src) prev.pause(); }, 4500);
           curG.gain.setValueAtTime(0, audioCtx.currentTime);
-          curG.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 4);
+          curG.gain.linearRampToValueAtTime(1.5, audioCtx.currentTime + 4);
         } else {
-          curG.gain.setValueAtTime(1, audioCtx.currentTime);
+          curG.gain.setValueAtTime(1.5, audioCtx.currentTime);
         }
       } else {
         audioA.pause(); audioB.pause();
         activePlayer = audioA;
         gainA.gain.setValueAtTime(0, audioCtx.currentTime);
-        gainA.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 1.5);
+        gainA.gain.linearRampToValueAtTime(1.5, audioCtx.currentTime + 1.5);
       }
 
       currentIndex = i;
@@ -542,7 +550,7 @@
     window.onload = () => {
         const lastState = JSON.parse(localStorage.getItem(STATE_KEY));
         if (lastState && lastState.index !== undefined) {
-            console.log("Sistema pronto para retomar do índice: " + lastState.index);
+            console.log("Sistema pronto para retomar");
         }
     };
 
@@ -576,7 +584,7 @@
       const fM = filesP4.find(f => f.name.toUpperCase().includes(mStr));
       if (!fH) return play(idx + 1);
       currentIndex = idx; activePlayer = audioA;
-      gainA.gain.setValueAtTime(1.5, audioCtx.currentTime);
+      gainA.gain.setValueAtTime(2.0, audioCtx.currentTime); // Volume extra para voz
       document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
       const playWait = (file) => new Promise(resolve => {
         activePlayer.src = createSafeUrl(file);
@@ -634,18 +642,18 @@
         isAdPlaying = true;
 
         const currentGain = (activePlayer === audioA) ? gainA : gainB;
-        currentGain.gain.setTargetAtTime(0.2, audioCtx.currentTime, 0.5);
+        currentGain.gain.setTargetAtTime(0.3, audioCtx.currentTime, 0.5);
 
         let adCount = 0;
         function playAdSequence() {
             if (adCount < 2) {
                 const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
                 audioAds.src = createSafeUrl(randomAd);
-                gainAds.gain.setValueAtTime(2.0, audioCtx.currentTime);
+                gainAds.gain.setValueAtTime(2.5, audioCtx.currentTime);
                 audioAds.onended = () => { adCount++; setTimeout(playAdSequence, 100); };
                 audioAds.play();
             } else {
-                currentGain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 1.5);
+                currentGain.gain.linearRampToValueAtTime(1.5, audioCtx.currentTime + 1.5);
                 isAdPlaying = false;
             }
         }
