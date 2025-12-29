@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rádio Miramar</title>
+  <link href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Quicksand:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
   
@@ -148,7 +149,13 @@
 <body>
 
   <nav>
-    <div style="font-weight: 800; color: var(--primary); margin-right: 20px;">RÁDIO MIRAMAR</div>
+    <div style="font-family: 'Dongle', sans-serif; font-size: 30px; color: var(--primary); margin-right: 20px; display: flex; align-items: center; gap: 10px; line-height: 0.6;">
+    <img src="https://miramarsupermercado.com.br/wp-content/uploads/2024/10/cropped-icone.png" alt="Logo Miramar" style="width: 40px; height: auto;">
+    <div style="display: flex; flex-direction: column;">
+        <span style="color: #ed6a1b; font-weight: 100; margin-top: 6px">RÁDIO</span>
+        <span style="color: #ffffff; font-weight: 700;">MIRAMAR</span>
+    </div>
+</div>
     <button class="nav-btn active" id="btn-player" onclick="showPage('player')">Estúdio ao Vivo</button>
     <button class="nav-btn" id="btn-config" onclick="showPage('config')">Configurações</button>
   </nav>
