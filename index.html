@@ -236,18 +236,14 @@
     
     // --- CONFIGURAÇÃO DE NIVELAMENTO AUTOMÁTICO (AGC) ---
     const compressor = audioCtx.createDynamicsCompressor();
-    // Threshold baixo (-40) garante que mesmo músicas baixas entrem no processamento
     compressor.threshold.setValueAtTime(-40, audioCtx.currentTime);
-    // Knee alto (40) suaviza a compressão para não soar artificial
     compressor.knee.setValueAtTime(40, audioCtx.currentTime);
-    // Ratio alto (12) achata os picos das músicas barulhentas
     compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
     compressor.attack.setValueAtTime(0.01, audioCtx.currentTime);
     compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
 
     const analyser = audioCtx.createAnalyser();
     
-    // Ganhos elevados (1.5) para "puxar" o volume base para cima antes do compressor
     const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain();
     gainA.gain.value = 1.5; 
     gainB.gain.value = 1.5;
@@ -265,7 +261,10 @@
 
     let playlist = [], currentIndex = -1, activePlayer = audioA, isAdPlaying = false;
     let musicLibrary = {}, filesP3 = [], filesP4 = [], filesAds = [];
-    let objectUrls = []; // Controle de cache de memória
+    let objectUrls = []; 
+
+    // Variáveis de Agendamento
+    let schedulerInterval = null;
 
     function createSafeUrl(file) {
         if (objectUrls.length > 10) URL.revokeObjectURL(objectUrls.shift());
@@ -322,9 +321,55 @@
 
       if (mCount > 0) {
         document.getElementById('genre-settings').style.display = 'block';
+        
+        // Inserção dos controles de Agendamento (Auto-Start / Auto-End)
+        if(!document.getElementById('scheduler-settings')) {
+            const schedDiv = document.createElement('div');
+            schedDiv.id = 'scheduler-settings';
+            schedDiv.style.background = "rgba(255,255,255,0.05)";
+            schedDiv.style.padding = "15px";
+            schedDiv.style.borderRadius = "8px";
+            schedDiv.style.margin = "15px 0";
+            schedDiv.innerHTML = `
+                <h4 style="margin-top:0">Agendamento Automático</h4>
+                <div style="display:flex; gap:20px; flex-wrap:wrap">
+                    <label>Início (Auto-Start): <input type="time" id="startTime"></label>
+                    <label>Término (Auto-End): <input type="time" id="endTime"></label>
+                </div>
+                <p style="font-size:0.8rem; opacity:0.7; margin-bottom:0">* A rádio iniciará/pausará nos horários definidos após a lista ser gerada.</p>
+            `;
+            document.getElementById('genre-settings').insertBefore(schedDiv, document.getElementById('genre-list'));
+        }
+
         document.getElementById('build').style.display = 'block';
         generateGenreSliders();
       }
+    }
+
+    function startScheduler() {
+        if (schedulerInterval) clearInterval(schedulerInterval);
+        
+        schedulerInterval = setInterval(() => {
+            if (playlist.length === 0) return;
+
+            const now = new Date();
+            const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+
+            // Lógica Auto-Start
+            if (startTime && currentTimeStr === startTime && activePlayer.paused && currentIndex === -1) {
+                console.log("Scheduler: Iniciando rádio...");
+                play(0);
+            }
+
+            // Lógica Auto-End
+            if (endTime && currentTimeStr === endTime && !activePlayer.paused) {
+                console.log("Scheduler: Encerrando rádio...");
+                activePlayer.pause();
+            }
+        }, 1000);
     }
 
     function generateGenreSliders() {
@@ -410,8 +455,10 @@
       });
 
       currentIndex = -1;
+      startScheduler(); // Inicia o monitoramento de tempo
       showPage('player');
-      play(0);
+      render();
+      alert("✅ Playlist gerada! A rádio seguirá o agendamento definido.");
     };
 
     function searchMusic(query) {
@@ -495,7 +542,6 @@
       audioA.onended = null; audioA.ontimeupdate = null;
       audioB.onended = null; audioB.ontimeupdate = null;
 
-      // Crossfade considerando o novo ganho de nivelamento (1.5)
       if (isManual || (playlist[currentIndex]?.isP1 && item.isP3)) {
         activePlayer = (prev === audioA) ? audioB : audioA;
         const curG = (activePlayer === audioA) ? gainA : gainB;
@@ -584,7 +630,7 @@
       const fM = filesP4.find(f => f.name.toUpperCase().includes(mStr));
       if (!fH) return play(idx + 1);
       currentIndex = idx; activePlayer = audioA;
-      gainA.gain.setValueAtTime(2.0, audioCtx.currentTime); // Volume extra para voz
+      gainA.gain.setValueAtTime(2.0, audioCtx.currentTime); 
       document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
       const playWait = (file) => new Promise(resolve => {
         activePlayer.src = createSafeUrl(file);
