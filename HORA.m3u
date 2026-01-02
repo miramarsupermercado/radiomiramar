@@ -1,7 +1,7 @@
 #EXTM3U
 
 # --- GRUPO: HORAS ---
-#EXTINF:-1 group-title="HORA CERTA",HRS01_O
+#EXTINF:-1 group-title="HORA CERTA",HRS01
 https://files.catbox.moe/jf88sk.mp3
 #EXTINF:-1 group-title="HORA CERTA",HRS02
 https://files.catbox.moe/adlwqr.mp3
@@ -210,4 +210,5 @@ https://files.catbox.moe/xi5biu.mp3
 #EXTINF:-1 group-title="HORA CERTA",MIN58
 https://files.catbox.moe/obn2xv.mp3
 #EXTINF:-1 group-title="HORA CERTA",MIN59
+
 https://files.catbox.moe/xcg3r8.mp3
