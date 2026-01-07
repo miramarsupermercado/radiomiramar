@@ -344,25 +344,32 @@
     }, 1 * 60 * 1000);
 
     async function fetchAllM3U(silent = false) {
-        const statusBox = document.getElementById('status-pastas');
-        if (!silent) { statusBox.style.display = 'block'; statusBox.innerHTML = "Lendo playlists..."; }
-        musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
-        try {
-            const targets = [
-                { name: 'Musicas.m3u', type: 'musicas' },
-                { name: 'Vinhetas.m3u', type: 'vinhetas' },
-                { name: 'Hora.m3u', type: 'hora' },
-                { name: 'Aviso.m3u', type: 'aviso' }
-            ];
-            for (const t of targets) {
-                // CORREÇÃO: Caminho relativo explicito para o GitHub
-                const res = await fetch('./' + t.name + '?t=' + Date.now());
-                if (res.ok) { const text = await res.text(); parseM3U(text, t.type); }
+    const statusBox = document.getElementById('status-pastas');
+    if (!silent) { statusBox.style.display = 'block'; statusBox.innerHTML = "Lendo playlists..."; }
+    musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
+    try {
+        const targets = [
+            { name: './Musicas.m3u', type: 'musicas' },
+            { name: './Vinhetas.m3u', type: 'vinhetas' },
+            { name: './Hora.m3u', type: 'hora' },
+            { name: './Aviso.m3u', type: 'aviso' }
+        ];
+        for (const t of targets) {
+            // O './' força a busca na mesma pasta onde o radio.html está
+            const res = await fetch(t.name + '?t=' + Date.now());
+            if (res.ok) { 
+                const text = await res.text(); 
+                parseM3U(text, t.type); 
+            } else {
+                console.error("Erro ao carregar:", t.name, "Status:", res.status);
             }
-            updateStatusUI();
-            if (!silent) { setupGenreUI(); preloadHours(); }
-        } catch (e) { if (!silent) statusBox.innerHTML = "❌ Erro ao ler arquivos."; }
+        }
+        updateStatusUI();
+        if (!silent) { setupGenreUI(); preloadHours(); }
+    } catch (e) { 
+        if (!silent) statusBox.innerHTML = "❌ Erro de conexão com o servidor."; 
     }
+}
 
     function preloadHours() {
         if (filesP4.length === 0) return;
@@ -688,5 +695,6 @@
 </script>
 </body>
 </html>
+
 
 
