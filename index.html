@@ -373,10 +373,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: 'Musicas.m3u', type: 'musicas' },
-                { name: 'Vinhetas.m3u', type: 'vinhetas' },
-                { name: 'Hora.m3u', type: 'hora' },
-                { name: 'Aviso.m3u', type: 'aviso' }
+                { name: './MUSICAS.m3u', type: 'musicas' },
+                { name: './VINHETAS.m3u', type: 'vinhetas' },
+                { name: './HORA.m3u', type: 'hora' },
+                { name: './AVISO.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -773,3 +773,4 @@
 </script>
 </body>
 </html>
+
