@@ -1,13 +1,23 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VXDKFTRQEJ"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date()); 
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HGB5Q74YN"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
 
-  gtag('config', 'G-VXDKFTRQEJ');
+    gtag('config', 'G-0HGB5Q74YN');
+
+    // Função para avisar o Analytics que o utilizador continua online ouvindo a rádio
+    setInterval(function() {
+      if (typeof gtag === 'function' && !document.hidden) {
+        gtag('event', 'radio_playing_ping', {
+          'event_category': 'Engagement',
+          'event_label': 'Still Listening'
+        });
+      }
+    }, 5000); // Envia um sinal a cada 5 segundos
   </script>
 
   <meta charset="utf-8" />
@@ -363,10 +373,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -763,4 +773,3 @@
 </script>
 </body>
 </html>
-
