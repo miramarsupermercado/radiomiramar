@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VXDKFTRQEJ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date()); 
+
+  gtag('config', 'G-VXDKFTRQEJ');
+  </script>
+
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rádio Miramar - Estúdio Profissional</title>
@@ -354,10 +363,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -507,7 +516,6 @@
                 statusText = "TOCANDO AGORA";
                 isReady = true;
             } else {
-                // Verificamos se o arquivo está carregado nos players principais ou no preload dedicado
                 const isInA = audioA.src.includes(item.url) && audioA.readyState >= 4;
                 const isInB = audioB.src.includes(item.url) && audioB.readyState >= 4;
                 const isInPreload = audioPreload.src.includes(item.url) && audioPreload.readyState >= 4;
@@ -567,7 +575,6 @@
       document.getElementById('current-title').textContent = item.name;
       updateAlbumArt(item.url, item.name); 
 
-      // AGRESSIVE PRELOAD: Carrega a PRÓXIMA música da fila no player de preload
       let nextIdx = i + 1;
       if (nextIdx < playlist.length) {
           const nextItem = playlist[nextIdx];
@@ -756,5 +763,3 @@
 </script>
 </body>
 </html>
-
-
