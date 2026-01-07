@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rádio Miramar - Estúdio Profissional</title>
-  <link href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Quicksand:wght@300;400;600;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Quicksand:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   
   <style>
     :root { 
@@ -92,9 +93,28 @@
     .btn-next { background: var(--primary); color: #fff; }
     .btn-last { background: #555; color: #fff; }
 
-    .track-item { padding: 12px 15px; border-radius: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.03); font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .track-item { 
+      padding: 12px 15px; 
+      border-radius: 10px; 
+      margin-bottom: 10px; 
+      background: rgba(255,255,255,0.03); 
+      font-size: 0.85rem; 
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
     .track-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .remove-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 5px; display: flex; align-items: center; justify-content: center; }
+    .remove-btn { 
+      background: none; 
+      border: none; 
+      color: var(--text-dim); 
+      cursor: pointer; 
+      padding: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
     .remove-btn:hover { color: var(--danger); }
 
     .btn-pao { background: #d6741d; color: #fff; border: none; padding: 20px; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 15px; width: 100%; }
@@ -181,6 +201,7 @@
     <div id="page-config">
       <div class="config-card">
         <h2>Painel de Controle</h2>
+        
         <div style="margin-bottom: 30px;">
           <h3>Interface do Player</h3>
           <div class="setting-item">
@@ -198,7 +219,9 @@
             </label>
           </div>
         </div>
+
         <div id="status-pastas" class="status-box">Carregando automação...</div>
+        
         <div id="genre-controls" style="margin-top:25px; display:none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3 style="color:var(--primary); margin: 0;">Mix de Gêneros Proporcional</h3>
@@ -207,28 +230,44 @@
           <div id="sliders-container"></div>
           <div id="total-info" style="margin-top:15px; font-weight:bold; text-align:center;">Total: 100%</div>
         </div>
+
         <button id="build" class="save-btn" style="display:none;">REGENERAR PROGRAMAÇÃO</button>
       </div>
     </div>
   </div>
 
-  <audio id="audioA" preload="auto" crossorigin="anonymous"></audio>
-  <audio id="audioB" preload="auto" crossorigin="anonymous"></audio>
-  <audio id="audioAds" preload="auto" crossorigin="anonymous"></audio>
-  <audio id="audioMin" preload="auto" crossorigin="anonymous"></audio>
+  <audio id="audioA" preload="auto"></audio>
+  <audio id="audioB" preload="auto"></audio>
+  <audio id="audioAds" preload="auto"></audio>
+  <audio id="audioMin" preload="auto"></audio>
 
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
-    const mainGain = audioCtx.createGain();
+    const mainGain = audioCtx.createGain(); 
     const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain(), gainMin = audioCtx.createGain();
     const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds'), audioMin = document.getElementById('audioMin');
     
     gainA.gain.value = 1.0; gainB.gain.value = 1.0; gainAds.gain.value = 1.5; gainMin.gain.value = 1.5;
     [audioA, audioB, audioAds, audioMin].forEach(a => {
+        a.crossOrigin = "anonymous";
         const source = audioCtx.createMediaElementSource(a);
-        let g = (a === audioA) ? gainA : (a === audioB) ? gainB : (a === audioAds) ? gainAds : gainMin;
+        let g;
+        if(a === audioA) g = gainA;
+        else if(a === audioB) g = gainB;
+        else if(a === audioAds) g = gainAds;
+        else g = gainMin;
         source.connect(g).connect(analyser);
+        
+        // CORREÇÃO: Pular se houver erro no arquivo
+        a.onerror = () => {
+          console.error("Erro ao carregar arquivo:", a.src);
+          if (a === activePlayer) {
+            let nextMusicIdx = -1;
+            for (let i = currentIndex + 1; i < playlist.length; i++) { if (playlist[i].isP1) { nextMusicIdx = i; break; } }
+            if (nextMusicIdx !== -1) play(nextMusicIdx, true);
+          }
+        };
     });
     analyser.connect(mainGain).connect(audioCtx.destination);
 
@@ -236,6 +275,7 @@
     let musicLibrary = {}, filesP3 = [], filesP4 = [], filesAds = [];
     let genreMix = {}; 
     let isMuted = false;
+
     let settings = { showNextBtn: true, allowSeek: true };
 
     async function unlockAudio() { if (audioCtx.state === 'suspended') await audioCtx.resume(); }
@@ -250,8 +290,13 @@
     };
 
     document.getElementById('playPause').onclick = function() {
-        if (activePlayer.paused) { activePlayer.play(); updatePlayPauseUI(true); } 
-        else { activePlayer.pause(); updatePlayPauseUI(false); }
+        if (activePlayer.paused) {
+            activePlayer.play();
+            updatePlayPauseUI(true);
+        } else {
+            activePlayer.pause();
+            updatePlayPauseUI(false);
+        }
     };
 
     function updatePlayPauseUI(isPlaying) {
@@ -260,9 +305,11 @@
     }
 
     document.getElementById('prog-container').onclick = function(e) {
-        if (!settings.allowSeek || currentIndex === -1 || !activePlayer || !activePlayer.duration) return;
+        if (!settings.allowSeek) return;
+        if (currentIndex === -1 || !activePlayer || !activePlayer.duration) return;
         const rect = this.getBoundingClientRect();
-        activePlayer.currentTime = ((e.clientX - rect.left) / rect.width) * activePlayer.duration;
+        const pos = (e.clientX - rect.left) / rect.width;
+        activePlayer.currentTime = pos * activePlayer.duration;
     };
 
     function updateInterfaceSettings() {
@@ -286,8 +333,15 @@
     window.addEventListener('DOMContentLoaded', async () => {
         loadInterfaceSettings();
         await fetchAllM3U(false); 
-        if (Object.keys(musicLibrary).length > 0) { generatePlaylist(); play(0); }
+        if (Object.keys(musicLibrary).length > 0) {
+            generatePlaylist(); 
+            play(0); 
+        }
     });
+
+    setInterval(() => {
+        if (Object.keys(musicLibrary).length > 0) { fetchAllM3U(true); }
+    }, 1 * 60 * 1000);
 
     async function fetchAllM3U(silent = false) {
         const statusBox = document.getElementById('status-pastas');
@@ -295,23 +349,33 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: 'MUSICAS.m3u', type: 'musicas' },
-                { name: 'VINHETAS.m3u', type: 'vinhetas' },
-                { name: 'HORA.m3u', type: 'hora' },
-                { name: 'AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
-                const res = await fetch(t.name + '?t=' + Date.now());
+                // CORREÇÃO: Caminho relativo explicito para o GitHub
+                const res = await fetch('./' + t.name + '?t=' + Date.now());
                 if (res.ok) { const text = await res.text(); parseM3U(text, t.type); }
             }
             updateStatusUI();
-            if (!silent) { setupGenreUI(); }
+            if (!silent) { setupGenreUI(); preloadHours(); }
         } catch (e) { if (!silent) statusBox.innerHTML = "❌ Erro ao ler arquivos."; }
+    }
+
+    function preloadHours() {
+        if (filesP4.length === 0) return;
+        filesP4.forEach(file => {
+            const link = document.createElement('link');
+            link.rel = 'preload'; link.as = 'audio'; link.href = file.url;
+            document.head.appendChild(link);
+        });
     }
 
     function parseM3U(text, type) {
         const lines = text.split(/\r?\n/);
-        let currentName = "", currentGenre = "Geral";
+        let currentName = ""; let currentGenre = "Geral";
         for (let line of lines) {
             line = line.trim();
             if (line.startsWith('#EXTINF:')) {
@@ -322,7 +386,11 @@
                 if (markerPos !== -1) { currentName = line.substring(markerPos + targetMarker.length).trim(); } 
                 else { const lastComma = line.lastIndexOf(','); if (lastComma !== -1) currentName = line.substring(lastComma + 1).trim(); }
             } else if (line !== "" && !line.startsWith('#')) {
-                const item = { url: line.replace(/\\/g, '/'), name: currentName || line.split('/').pop().replace(/\.[^/.]+$/, ""), genre: currentGenre };
+                // CORREÇÃO: Garante caminho relativo limpando barras invertidas
+                let url = line.replace(/\\/g, '/');
+                if (!url.startsWith('http') && !url.startsWith('./')) url = './' + url;
+                
+                const item = { url: url, name: currentName || line.split('/').pop().replace(/\.[^/.]+$/, ""), genre: currentGenre };
                 if (type === 'musicas') { if (!musicLibrary[currentGenre]) musicLibrary[currentGenre] = []; musicLibrary[currentGenre].push(item); } 
                 else if (type === 'vinhetas') filesP3.push(item);
                 else if (type === 'hora') filesP4.push(item);
@@ -336,12 +404,14 @@
       const genres = Object.keys(musicLibrary);
       if (genres.length === 0) return;
       const container = document.getElementById('sliders-container');
-      container.innerHTML = ""; document.getElementById('genre-controls').style.display = "block";
+      container.innerHTML = "";
+      document.getElementById('genre-controls').style.display = "block";
       const savedPreset = localStorage.getItem('miramar_genre_preset');
       const preset = savedPreset ? JSON.parse(savedPreset) : null;
       const defaultPerc = Math.floor(100 / genres.length);
       genres.forEach((g, idx) => {
-        genreMix[g] = (preset && preset[g] !== undefined) ? preset[g] : (idx === genres.length - 1) ? 100 - (defaultPerc * (genres.length - 1)) : defaultPerc;
+        if (preset && preset[g] !== undefined) { genreMix[g] = preset[g]; } 
+        else { genreMix[g] = (idx === genres.length - 1) ? 100 - (defaultPerc * (genres.length - 1)) : defaultPerc; }
         const row = document.createElement('div');
         row.className = "genre-row";
         row.innerHTML = `<div class="genre-info"><span>${g}</span><span id="label-${g}">${genreMix[g]}%</span></div><input type="range" class="genre-slider" data-genre="${g}" min="0" max="100" value="${genreMix[g]}">`;
@@ -352,14 +422,23 @@
       });
     }
 
+    function saveGenrePreset() { localStorage.setItem('miramar_genre_preset', JSON.stringify(genreMix)); alert("Configuração de gêneros salva com sucesso!"); }
+
     function adjustOtherSliders(changedGenre, newVal) {
-      const genres = Object.keys(genreMix); if (genres.length <= 1) { genreMix[changedGenre] = 100; updateSliderUI(); return; }
+      const genres = Object.keys(genreMix);
+      if (genres.length <= 1) { genreMix[changedGenre] = 100; updateSliderUI(); return; }
       const oldVal = genreMix[changedGenre], diff = newVal - oldVal;
       genreMix[changedGenre] = newVal;
       const others = genres.filter(g => g !== changedGenre);
       let totalOthers = others.reduce((sum, g) => sum + genreMix[g], 0);
-      if (totalOthers > 0) { others.forEach(g => { genreMix[g] = Math.max(0, Math.round(genreMix[g] - (diff * (genreMix[g] / totalOthers)))); }); } 
-      else { others.forEach(g => genreMix[g] = Math.max(0, Math.round((100 - newVal) / others.length))); }
+      if (totalOthers > 0) {
+        others.forEach(g => {
+          const share = genreMix[g] / totalOthers;
+          genreMix[g] = Math.max(0, Math.round(genreMix[g] - (diff * share)));
+        });
+      } else {
+        others.forEach(g => genreMix[g] = Math.max(0, Math.round(100 - newVal) / others.length));
+      }
       let currentTotal = Object.values(genreMix).reduce((a, b) => a + b, 0);
       if (currentTotal !== 100) genreMix[others[0]] += (100 - currentTotal);
       updateSliderUI();
@@ -367,32 +446,40 @@
 
     function updateSliderUI() {
       for (let g in genreMix) {
-        const input = document.querySelector(`.genre-slider[data-genre="${g}"]`), label = document.getElementById(`label-${g}`);
-        if (input) input.value = genreMix[g]; if (label) label.textContent = genreMix[g] + "%";
+        const input = document.querySelector(`.genre-slider[data-genre="${g}"]`);
+        const label = document.getElementById(`label-${g}`);
+        if (input) input.value = genreMix[g];
+        if (label) label.textContent = genreMix[g] + "%";
       }
     }
 
     function updateStatusUI() {
-      document.getElementById('status-pastas').innerHTML = `Músicas: ${Object.values(musicLibrary).flat().length} | Vinhetas: ${filesP3.length}`;
+      const totalMusic = Object.values(musicLibrary).flat().length;
+      document.getElementById('status-pastas').innerHTML = `Músicas: ${totalMusic} | Vinhetas: ${filesP3.length}`;
       document.getElementById('build').style.display = 'block';
     }
 
     function generatePlaylist() {
       playlist = []; const MAX_TRACKS = 300; const genres = Object.keys(musicLibrary);
-      let tempMusicList = [], recentP3Urls = [];
+      let tempMusicList = []; let recentP3Urls = [];
       genres.forEach(g => {
         const source = [...musicLibrary[g]].sort(() => Math.random() - 0.5);
         const count = Math.round(((genreMix[g] || 50) / 100) * MAX_TRACKS);
-        for(let i=0; i<count; i++) { if (tempMusicList.length >= MAX_TRACKS || source.length === 0) break; tempMusicList.push({...source.pop(), isP1: true}); }
+        for(let i=0; i<count; i++) {
+          if (tempMusicList.length >= MAX_TRACKS || source.length === 0) break;
+          const music = source.pop(); tempMusicList.push({...music, isP1: true});
+        }
       });
       tempMusicList.sort(() => Math.random() - 0.5);
       tempMusicList.forEach((m, i) => {
         playlist.push(m);
         if (i % 2 === 0 && filesP4.length) playlist.push({ isHoraDinamica: true });
         if (filesP3.length > 0) {
-          let pool = filesP3.filter(v => !recentP3Urls.includes(v.url)); if (pool.length === 0) pool = filesP3;
+          let pool = filesP3.filter(v => !recentP3Urls.includes(v.url));
+          if (pool.length === 0) pool = filesP3;
           const chosen = pool[Math.floor(Math.random() * pool.length)];
-          playlist.push({ ...chosen, isP3: true }); recentP3Urls.push(chosen.url);
+          playlist.push({ ...chosen, isP3: true });
+          recentP3Urls.push(chosen.url);
           if (recentP3Urls.length > 3) recentP3Urls.shift();
         }
       });
@@ -407,67 +494,123 @@
       const item = playlist[i];
       if (item.isHoraDinamica) { runHora(i); return; }
       
-      const prevPlayer = activePlayer, prevGain = (prevPlayer === audioA) ? gainA : gainB;
+      const prevPlayer = activePlayer;
+      const prevGain = (prevPlayer === audioA) ? gainA : gainB;
       activePlayer = (prevPlayer === audioA) ? audioB : audioA;
       const activeGain = (activePlayer === audioA) ? gainA : gainB;
       
-      activePlayer.src = item.url; activePlayer.load();
-      currentIndex = i; activeGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      activePlayer.src = item.url;
+      activePlayer.load();
+      currentIndex = i;
+      activeGain.gain.cancelScheduledValues(audioCtx.currentTime);
       
-      if (item.isP3 || manual) { activeGain.gain.setValueAtTime(1.0, audioCtx.currentTime); prevGain.gain.setValueAtTime(0, audioCtx.currentTime); prevPlayer.pause(); } 
-      else {
+      if (item.isP3 || manual) {
+          activeGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+          prevGain.gain.setValueAtTime(0, audioCtx.currentTime);
+          prevPlayer.pause();
+      } else {
           activeGain.gain.setValueAtTime(0, audioCtx.currentTime);
           activeGain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 0.8);
           prevGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8);
       }
       
-      activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { document.getElementById('current-title').textContent = "⚠️ Clique para ouvir"; });
+      activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => {
+          document.getElementById('current-title').textContent = "⚠️ Clique na tela para ouvir o som";
+      });
+      
       document.getElementById('current-title').textContent = item.name;
-      updateAlbumArt(item.name); 
+      updateAlbumArt(item.url, item.name); 
 
       let nextRealIdx = -1;
       for (let j = i + 1; j < playlist.length; j++) { if (!playlist[j].isHoraDinamica) { nextRealIdx = j; break; } }
       if (nextRealIdx !== -1) {
-          const standby = (activePlayer === audioA) ? audioB : audioA;
-          if (standby.src !== playlist[nextRealIdx].url) { standby.src = playlist[nextRealIdx].url; standby.load(); }
+          const nextItem = playlist[nextRealIdx];
+          const standbyPlayer = (activePlayer === audioA) ? audioB : audioA;
+          if (standbyPlayer.src !== nextItem.url) { standbyPlayer.src = nextItem.url; standbyPlayer.load(); }
       }
       
       activePlayer.ontimeupdate = function() {
         document.getElementById('progress-fill').style.width = (this.currentTime / this.duration * 100) + "%";
         document.getElementById('time-current').textContent = formatTime(this.currentTime);
         document.getElementById('time-total').textContent = formatTime(this.duration);
-        if (!item.overlap && this.duration > 5 && (this.duration - this.currentTime <= 0.5)) { item.overlap = true; play(i + 1); }
+        if (!item.overlap && this.duration > 5) {
+            if (this.duration - this.currentTime <= 0.5) { item.overlap = true; play(i + 1); }
+        }
       };
       activePlayer.onended = () => { if (!item.overlap) play(i + 1); };
       render();
     }
 
     async function runHora(idx) {
-        const now = new Date(), hS = "HRS" + now.getHours().toString().padStart(2, '0'), mS = "MIN" + now.getMinutes().toString().padStart(2, '0');
-        const fH = filesP4.find(f => f.name.includes(hS)), fM = filesP4.find(f => f.name.includes(mS));
+        const now = new Date();
+        const hS = "HRS" + now.getHours().toString().padStart(2, '0');
+        const mS = "MIN" + now.getMinutes().toString().padStart(2, '0');
+        const fH = filesP4.find(f => f.name.includes(hS));
+        const fM = filesP4.find(f => f.name.includes(mS));
         if (!fH) return play(idx + 1);
-        currentIndex = idx; document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes()}`;
+        currentIndex = idx;
+        document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes()}`;
         if (fM) { audioMin.src = fM.url; audioMin.load(); }
+        let nextRealIdx = -1;
+        for (let j = idx + 1; j < playlist.length; j++) { if (!playlist[j].isHoraDinamica) { nextRealIdx = j; break; } }
+        if (nextRealIdx !== -1) {
+            const standby = (activePlayer === audioA) ? audioB : audioA;
+            standby.src = playlist[nextRealIdx].url; standby.load();
+        }
         audioAds.src = fH.url; audioAds.play();
         audioAds.onended = () => { if (fM) { audioMin.play(); audioMin.onended = () => play(idx + 1, true); } else { play(idx + 1, true); } };
+    }
+
+    function removeTrack(absoluteIndex) {
+        let j = absoluteIndex + 1; while (j < playlist.length && !playlist[j].isP1) { j++; }
+        playlist.splice(absoluteIndex, (j - absoluteIndex));
+        if (playlist.length < 50) generatePlaylist();
+        render();
+    }
+
+    function triggerUrgentAd() {
+        if (filesAds.length === 0) { alert("Playlist de Avisos vazia!"); return; }
+        const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
+        const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
+        const now = audioCtx.currentTime; const fadeTime = 0.5;
+        currentMusicGain.gain.cancelScheduledValues(now);
+        currentMusicGain.gain.setValueAtTime(currentMusicGain.gain.value, now);
+        currentMusicGain.gain.exponentialRampToValueAtTime(0.08, now + fadeTime);
+        const btn = document.getElementById('playAd');
+        btn.innerText = "🔊 TOCANDO AGORA (2x)..."; btn.style.background = "#e74c3c";
+        let playsCount = 0; audioAds.src = randomAd.url; audioAds.play();
+        audioAds.onended = () => {
+            playsCount++;
+            if (playsCount < 2) { audioAds.currentTime = 0; audioAds.play(); } 
+            else {
+                const endNow = audioCtx.currentTime;
+                currentMusicGain.gain.cancelScheduledValues(endNow);
+                currentMusicGain.gain.setValueAtTime(currentMusicGain.gain.value, endNow);
+                currentMusicGain.gain.exponentialRampToValueAtTime(1.0, endNow + fadeTime);
+                btn.innerText = "📢 AVISO PÃO (IMEDIATO)"; btn.style.background = "#d6741d";
+            }
+        };
     }
 
     function searchMusic(query) {
         const resultsDiv = document.getElementById('search-results');
         if (!query) { resultsDiv.style.display = 'none'; return; }
-        const filtered = Object.values(musicLibrary).flat().filter(m => m.name.toLowerCase().includes(query.toLowerCase())).slice(0, 15);
+        const allMusics = Object.values(musicLibrary).flat();
+        const filtered = allMusics.filter(m => m.name.toLowerCase().includes(query.toLowerCase())).slice(0, 15);
         resultsDiv.innerHTML = filtered.map(m => `<div class="search-item"><span class="search-item-name">${m.name}</span><div class="search-item-actions"><button class="btn-action btn-next" onclick="insertMusicByPosition('${m.url}', '${m.name}', 'next')">Próxima</button><button class="btn-action btn-last" onclick="insertMusicByPosition('${m.url}', '${m.name}', 'last')">Última</button></div></div>`).join('');
         resultsDiv.style.display = 'block';
     }
 
     function insertMusicByPosition(url, name, type) {
-        let musicItemsIndices = []; playlist.forEach((item, idx) => { if (item.isP1 && idx > currentIndex) musicItemsIndices.push(idx); });
+        let musicItemsIndices = [];
+        playlist.forEach((item, idx) => { if (item.isP1 && idx > currentIndex) musicItemsIndices.push(idx); });
         if (musicItemsIndices.length > 0) {
             const newMusic = { url, name, isP1: true };
-            if (type === 'next') playlist.splice(musicItemsIndices[0], 0, newMusic);
-            else playlist.splice(musicItemsIndices[Math.min(4, musicItemsIndices.length - 1)] + 1, 0, newMusic);
+            if (type === 'next') { const targetIdx = musicItemsIndices[0]; playlist.splice(targetIdx, 0, newMusic); } 
+            else { const targetRelativeIndex = Math.min(4, musicItemsIndices.length - 1); const targetIdx = musicItemsIndices[targetRelativeIndex]; playlist.splice(targetIdx + 1, 0, newMusic); }
         } else { playlist.push({ url, name, isP1: true }); }
-        document.getElementById('search-results').style.display = 'none'; document.getElementById('musicSearch').value = ''; render();
+        document.getElementById('search-results').style.display = 'none';
+        document.getElementById('musicSearch').value = ''; render();
     }
 
     function showPage(p) {
@@ -478,37 +621,68 @@
     }
 
     function render() {
-        const container = document.getElementById('playlist'); let html = "", count = 0;
+        const container = document.getElementById('playlist');
+        let html = ""; let count = 0;
         for (let i = currentIndex + 1; i < playlist.length; i++) {
-            if (playlist[i].isP1) {
-                html += `<div class="track-item"><span class="track-name">${playlist[i].name}</span><button class="remove-btn" onclick="removeTrack(${i})"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></div>`;
-                if (++count >= 5) break;
+            const item = playlist[i];
+            if (item.isP1) {
+                html += `
+                <div class="track-item">
+                    <span class="track-name">${item.name}</span>
+                    <button class="remove-btn" onclick="removeTrack(${i})" title="Remover">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </div>`;
+                count++;
             }
+            if (count >= 5) break;
         }
         container.innerHTML = html || '<div style="text-align: center; color: #555; margin-top: 20px;">Fim da lista</div>';
     }
 
     function formatTime(t) { if (isNaN(t)) return "00:00"; const m = Math.floor(t/60), s = Math.floor(t%60); return `${m}:${s<10?'0':''}${s}`; }
+    
+    document.getElementById('nextBtn').onclick = () => {
+        let nextMusicIdx = -1;
+        for (let i = currentIndex + 1; i < playlist.length; i++) { if (playlist[i].isP1) { nextMusicIdx = i; break; } }
+        if (nextMusicIdx !== -1) { play(nextMusicIdx, true); }
+    };
 
-    function updateAlbumArt(musicName) {
+    // CORREÇÃO: Removida biblioteca externa para evitar erro de CORS no GitHub. 
+    // Foca apenas em imagens locais ou fallback silencioso.
+    function updateAlbumArt(audioUrl, musicName) {
       const img = document.getElementById('album-img'), fb = document.getElementById('fallback-icon');
-      const safeName = musicName.replace(/\//g, '_');
-      img.src = `300x300/${safeName}.png`;
-      img.style.display = 'block'; fb.style.display = 'none';
-      img.onerror = () => { 
-          img.src = `300x300/${safeName}.jpg`; 
-          img.onerror = () => { img.style.display = 'none'; fb.style.display = 'block'; };
+      const fileNameForArt = musicName.replace(/\//g, '_');
+      const pngPath = `./300x300/${fileNameForArt}.png`;
+      const jpgPath = `./300x300/${fileNameForArt}.jpg`;
+
+      const showFallback = () => { img.style.display = 'none'; fb.style.display = 'block'; };
+
+      const testPng = new Image();
+      testPng.src = pngPath;
+      testPng.onload = () => { img.src = pngPath; img.style.display = 'block'; fb.style.display = 'none'; };
+      testPng.onerror = () => {
+          const testJpg = new Image();
+          testJpg.src = jpgPath;
+          testJpg.onload = () => { img.src = jpgPath; img.style.display = 'block'; fb.style.display = 'none'; };
+          testJpg.onerror = showFallback;
       };
     }
 
     const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
     function draw() {
-      requestAnimationFrame(draw); canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
-      const data = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(data);
+      requestAnimationFrame(draw);
+      canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let g = ctx.createLinearGradient(0, canvas.height, 0, 0); g.addColorStop(0, "rgba(243, 156, 18, 0)"); g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
+      let g = ctx.createLinearGradient(0, canvas.height, 0, 0);
+      g.addColorStop(0, "rgba(243, 156, 18, 0)"); g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
       const barW = (canvas.width / data.length) * 10;
-      for(let i=0; i<data.length; i++) { ctx.fillStyle = g; ctx.fillRect(i*(barW+2), canvas.height - (data[i] * (canvas.height/255)), barW, data[i] * (canvas.height/255)); }
+      for(let i=0; i<data.length; i++) {
+        let h = data[i] * (canvas.height / 255); ctx.fillStyle = g;
+        ctx.fillRect(i*(barW+2), canvas.height - h, barW, h);
+      }
     }
     draw();
 </script>
