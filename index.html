@@ -1,23 +1,18 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VXDKFTRQEJ"></script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HGB5Q74YN"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
+    gtag('config', 'G-0HGB5Q74YN');
 
-    gtag('config', 'G-VXDKFTRQEJ');
-
-    // Função para avisar o Analytics que o utilizador continua online ouvindo a rádio
     setInterval(function() {
       if (typeof gtag === 'function' && !document.hidden) {
-        gtag('event', 'radio_playing_ping', {
-          'event_category': 'Engagement',
-          'event_label': 'Still Listening'
-        });
+        gtag('event', 'radio_playing_ping', { 'event_category': 'Engagement', 'event_label': 'Still Listening' });
       }
-    }, 5000); // Envia um sinal a cada 5 segundos
+    }, 300000);
   </script>
 
   <meta charset="utf-8" />
@@ -373,10 +368,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -585,11 +580,21 @@
       document.getElementById('current-title').textContent = item.name;
       updateAlbumArt(item.url, item.name); 
 
-      let nextIdx = i + 1;
-      if (nextIdx < playlist.length) {
-          const nextItem = playlist[nextIdx];
-          if (!nextItem.isHoraDinamica && audioPreload.src !== nextItem.url) {
-              audioPreload.src = nextItem.url;
+      // NOVO: SISTEMA DE PRELOAD PRIORITÁRIO PARA MÚSICAS (P1)
+      // Procura a próxima música (P1) para colocar no preload, ignorando vinhetas intermediárias
+      let nextMusicIdx = -1;
+      for (let k = i + 1; k < playlist.length; k++) {
+          if (playlist[k].isP1) {
+              nextMusicIdx = k;
+              break;
+          }
+      }
+
+      if (nextMusicIdx !== -1) {
+          const nextMusic = playlist[nextMusicIdx];
+          if (audioPreload.src !== nextMusic.url) {
+              console.log("Priorizando Preload da Música:", nextMusic.name);
+              audioPreload.src = nextMusic.url;
               audioPreload.load();
           }
       }
@@ -625,7 +630,8 @@
         currentIndex = idx;
         document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes()}`;
         
-        if(playlist[idx+1]) {
+        // Mantém a música seguinte pré-carregada enquanto a hora toca
+        if(playlist[idx+1] && playlist[idx+1].isP3) {
             audioPreload.src = playlist[idx+1].url;
             audioPreload.load();
         }
@@ -773,5 +779,3 @@
 </script>
 </body>
 </html>
-
-
