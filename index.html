@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HGB5Q74YN"></script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VXDKFTRQEJ"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-    gtag('config', 'G-0HGB5Q74YN');
+    gtag('config', 'G-VXDKFTRQEJ');
 
     setInterval(function() {
       if (typeof gtag === 'function' && !document.hidden) {
@@ -271,7 +271,23 @@
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256; // Detalhe das ondas
     const mainGain = audioCtx.createGain(); 
+    
+    // COMPRESSOR (Normalização Profissional)
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-24, audioCtx.currentTime);
+    compressor.knee.setValueAtTime(40, audioCtx.currentTime);
+    compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+    compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+    compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+    // EQUALIZADOR (Brilho e Peso)
+    const lowShelf = audioCtx.createBiquadFilter();
+    lowShelf.type = "lowshelf"; lowShelf.frequency.value = 200; lowShelf.gain.value = 3;
+    const highShelf = audioCtx.createBiquadFilter();
+    highShelf.type = "highshelf"; highShelf.frequency.value = 3000; highShelf.gain.value = 2;
+
     const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain(), gainMin = audioCtx.createGain();
     const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds'), audioMin = document.getElementById('audioMin'), audioPreload = document.getElementById('audioPreload');
     
@@ -281,14 +297,13 @@
         a.crossOrigin = "anonymous";
         const source = audioCtx.createMediaElementSource(a);
         let g = (a === audioA) ? gainA : (a === audioB) ? gainB : (a === audioAds) ? gainAds : gainMin;
-        source.connect(g).connect(analyser);
         
-        a.onerror = () => {
-          console.error("Erro ao carregar arquivo:", a.src);
-          if (a === activePlayer) skipToNext();
-        };
+        // CONEXÃO CORRIGIDA: Som -> Gain -> Analyser (Ondas) -> Processamento
+        source.connect(g).connect(analyser);
     });
-    analyser.connect(mainGain).connect(audioCtx.destination);
+
+    // CADEIA DE ÁUDIO FINAL
+    analyser.connect(lowShelf).connect(highShelf).connect(compressor).connect(mainGain).connect(audioCtx.destination);
 
     let playlist = [], currentIndex = -1, activePlayer = audioA;
     let musicLibrary = {}, filesP3 = [], filesP4 = [], filesAds = [];
@@ -320,6 +335,7 @@
     function updatePlayPauseUI(isPlaying) {
         document.getElementById('icon-play').style.display = isPlaying ? 'none' : 'block';
         document.getElementById('icon-stop').style.display = isPlaying ? 'block' : 'none';
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
     }
 
     document.getElementById('prog-container').onclick = function(e) {
@@ -355,7 +371,15 @@
             generatePlaylist(); 
             play(0); 
         }
+        setupMediaSession();
     });
+
+    function setupMediaSession() {
+        if (!('mediaSession' in navigator)) return;
+        navigator.mediaSession.setActionHandler('play', () => { activePlayer.play(); updatePlayPauseUI(true); });
+        navigator.mediaSession.setActionHandler('pause', () => { activePlayer.pause(); updatePlayPauseUI(false); });
+        navigator.mediaSession.setActionHandler('nexttrack', () => skipToNext());
+    }
 
     setInterval(() => {
         if (Object.keys(musicLibrary).length > 0) { fetchAllM3U(true); }
@@ -580,8 +604,13 @@
       document.getElementById('current-title').textContent = item.name;
       updateAlbumArt(item.url, item.name); 
 
-      // NOVO: SISTEMA DE PRELOAD PRIORITÁRIO PARA MÚSICAS (P1)
-      // Procura a próxima música (P1) para colocar no preload, ignorando vinhetas intermediárias
+      if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+              title: item.name, artist: 'Rádio Miramar', album: 'Estúdio Profissional',
+              artwork: [{ src: `./300x300/${item.name.replace(/\//g, '_')}.png`, sizes: '300x300', type: 'image/png' }]
+          });
+      }
+
       let nextMusicIdx = -1;
       for (let k = i + 1; k < playlist.length; k++) {
           if (playlist[k].isP1) {
@@ -593,7 +622,6 @@
       if (nextMusicIdx !== -1) {
           const nextMusic = playlist[nextMusicIdx];
           if (audioPreload.src !== nextMusic.url) {
-              console.log("Priorizando Preload da Música:", nextMusic.name);
               audioPreload.src = nextMusic.url;
               audioPreload.load();
           }
@@ -630,7 +658,6 @@
         currentIndex = idx;
         document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes()}`;
         
-        // Mantém a música seguinte pré-carregada enquanto a hora toca
         if(playlist[idx+1] && playlist[idx+1].isP3) {
             audioPreload.src = playlist[idx+1].url;
             audioPreload.load();
@@ -663,9 +690,11 @@
         const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
         const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
         const now = audioCtx.currentTime; const fadeTime = 0.5;
+        
         currentMusicGain.gain.cancelScheduledValues(now);
         currentMusicGain.gain.setValueAtTime(currentMusicGain.gain.value, now);
         currentMusicGain.gain.exponentialRampToValueAtTime(0.08, now + fadeTime);
+        
         const btn = document.getElementById('playAd');
         btn.innerText = "🔊 TOCANDO AGORA (2x)..."; btn.style.background = "#e74c3c";
         let playsCount = 0; audioAds.src = randomAd.url; audioAds.play();
@@ -767,11 +796,16 @@
       const data = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(data);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // GRADIENTE CORRIGIDO (O erro estava aqui)
       let g = ctx.createLinearGradient(0, canvas.height, 0, 0);
-      g.addColorStop(0, "rgba(243, 156, 18, 0)"); g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
-      const barW = (canvas.width / data.length) * 10;
+      g.addColorStop(0, "rgba(243, 156, 18, 0)"); 
+      g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
+      
+      const barW = (canvas.width / data.length) * 2;
       for(let i=0; i<data.length; i++) {
-        let h = data[i] * (canvas.height / 255); ctx.fillStyle = g;
+        let h = data[i] * (canvas.height / 255); 
+        ctx.fillStyle = g;
         ctx.fillRect(i*(barW+2), canvas.height - h, barW, h);
       }
     }
@@ -779,4 +813,3 @@
 </script>
 </body>
 </html>
-
