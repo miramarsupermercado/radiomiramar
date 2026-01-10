@@ -395,7 +395,7 @@
                 { name: './MUSICAS.m3u', type: 'musicas' },
                 { name: './VINHETAS.m3u', type: 'vinhetas' },
                 { name: './HORA.m3u', type: 'hora' },
-                { name: ./AVISO.m3u', type: 'aviso' }
+                { name: './AVISO.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -763,4 +763,5 @@
 </script>
 </body>
 </html>
+
 
