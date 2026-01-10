@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HGB5Q74YN"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -32,6 +34,20 @@
       --text-dim: #a0a0a0;
       --accent: #2ecc71;
       --danger: #e74c3c;
+    }
+
+    /* Estilo do novo Banner do Telegram */
+    #banner-remoto {
+      background: #0088cc;
+      color: white;
+      text-align: center;
+      padding: 15px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      display: none; /* Escondido por padrão */
+      z-index: 9999;
+      width: 100%;
+      position: relative;
     }
 
     * { box-sizing: border-box; transition: all 0.2s ease; }
@@ -166,6 +182,8 @@
 </head>
 <body>
 
+  <div id="banner-remoto"></div>
+
   <nav>
     <div style="font-family: 'Dongle', sans-serif; font-size: 30px; color: var(--primary); margin-right: 20px; display: flex; align-items: center; gap: 10px; line-height: 0.6;">
         <img src="https://miramarsupermercado.com.br/wp-content/uploads/2024/10/cropped-icone.png" alt="Logo Miramar" style="width: 40px; height: auto;">
@@ -268,7 +286,50 @@
   <audio id="audioMin" preload="auto"></audio>
   <audio id="audioPreload" preload="auto" style="display:none;"></audio>
 
-<script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <script>
+    // --- INICIALIZAÇÃO FIREBASE (SUBSTITUA PELOS SEUS DADOS) ---
+    const firebaseConfig = {
+      databaseURL: "https://radiomiramar-52436-default-rtdb.firebaseio.com/"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // Listener para o comando remoto de aviso pão ou próxima
+    database.ref('comando_site/aviso').on('value', (snapshot) => {
+        const msg = snapshot.val();
+        if (!msg) return;
+
+        if (msg === "TOCAR_AVISO") { 
+            triggerUrgentAd(); 
+        } 
+        else if (msg === "PROXIMA_MUSICA") { 
+            skipToNext(); 
+        } 
+        else if (msg === "TOGGLE_MUTE") { 
+            // Simula o clique no botão de mute para inverter o estado atual
+            document.getElementById('muteBtn').click(); 
+        }
+
+        // Limpa o comando para o Firebase ficar pronto para o próximo
+        database.ref('comando_site/aviso').set("");
+    });
+
+    // Escuta a adição de músicas vinda do controle remoto
+    database.ref('comando_site/fila').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.acao === "ADICIONAR") {
+            // Usa a função interna insertMusicByPosition para injetar na lista
+            insertMusicByPosition(data.url, data.name, data.posicao);
+            
+            // Limpa o registro da fila após processar a entrada
+            database.ref('comando_site/fila').set(null);
+        }
+    });
+
+    // --- RESTANTE DO CÓDIGO ORIGINAL DA RÁDIO ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256; 
@@ -392,10 +453,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -529,7 +590,6 @@
       
       tempMusicList.forEach((m, i) => {
         newPlaylist.push(m);
-        // HORA CERTA A CADA 3 MÚSICAS (i % 3 === 0)
         if (i % 3 === 0 && filesP4.length) newPlaylist.push({ isHoraDinamica: true });
         if (filesP3.length > 0) {
           let pool = filesP3.filter(v => !recentP3Urls.includes(v.url));
@@ -760,7 +820,6 @@
       }
     }
     draw();
-</script>
+  </script>
 </body>
 </html>
-
