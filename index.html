@@ -290,7 +290,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
   <script>
-    // --- INICIALIZAÇÃO FIREBASE (SUBSTITUA PELOS SEUS DADOS) ---
+    // --- INICIALIZAÇÃO FIREBASE ---
     const firebaseConfig = {
       databaseURL: "https://radiomiramar-52436-default-rtdb.firebaseio.com/"
     };
@@ -300,34 +300,25 @@
     // Listener para o comando remoto de aviso pão ou próxima
     database.ref('comando_site/aviso').on('value', (snapshot) => {
         const msg = snapshot.val();
-        if (!msg) return;
-
-        if (msg === "TOCAR_AVISO") { 
-            triggerUrgentAd(); 
-        } 
-        else if (msg === "PROXIMA_MUSICA") { 
-            skipToNext(); 
-        } 
-        else if (msg === "TOGGLE_MUTE") { 
-            // Simula o clique no botão de mute para inverter o estado atual
-            document.getElementById('muteBtn').click(); 
-        }
-
-        // Limpa o comando para o Firebase ficar pronto para o próximo
-        database.ref('comando_site/aviso').set("");
-    });
-
-    // Escuta a adição de músicas vinda do controle remoto
-    database.ref('comando_site/fila').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.acao === "ADICIONAR") {
-            // Usa a função interna insertMusicByPosition para injetar na lista
-            insertMusicByPosition(data.url, data.name, data.posicao);
-            
-            // Limpa o registro da fila após processar a entrada
-            database.ref('comando_site/fila').set(null);
+        if (msg === "TOCAR_AVISO") {
+            triggerUrgentAd();
+            database.ref('comando_site/aviso').set("");
+        } else if (msg === "PROXIMA_MUSICA") {
+            skipToNext();
+            database.ref('comando_site/aviso').set("");
         }
     });
+
+    // Implementação do Status/Heartbeat no Firebase
+    setInterval(function() {
+        if (activePlayer && !activePlayer.paused) {
+            database.ref('status_radio/online').set({
+                tocando: true,
+                musica_atual: document.getElementById('current-title').textContent,
+                ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+    }, 10000); // Atualiza a cada 10 segundos
 
     // --- RESTANTE DO CÓDIGO ORIGINAL DA RÁDIO ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -823,4 +814,3 @@
   </script>
 </body>
 </html>
-
