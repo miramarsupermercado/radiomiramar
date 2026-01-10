@@ -1,9 +1,6 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-  
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HGB5Q74YN"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -35,29 +32,6 @@
       --text-dim: #a0a0a0;
       --accent: #2ecc71;
       --danger: #e74c3c;
-    }
-
-    /* Overlay de Segurança */
-    #autoplay-overlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.95); z-index: 10000;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      cursor: pointer; text-align: center; padding: 20px;
-    }
-    #autoplay-overlay h2 { color: var(--primary); margin-bottom: 10px; font-size: 2.5rem; }
-    #autoplay-overlay p { font-size: 1.2rem; color: #fff; margin-bottom: 20px; }
-
-    #banner-remoto {
-      background: #0088cc;
-      color: white;
-      text-align: center;
-      padding: 15px;
-      font-size: 1.2rem;
-      font-weight: bold;
-      display: none; 
-      z-index: 9999;
-      width: 100%;
-      position: relative;
     }
 
     * { box-sizing: border-box; transition: all 0.2s ease; }
@@ -192,16 +166,6 @@
 </head>
 <body>
 
-  <div id="autoplay-overlay" onclick="startRadio()">
-    <h2>Rádio Miramar</h2>
-    <p>Clique para iniciar a transmissão</p>
-    <div class="round-btn" style="background: var(--primary); color: white; width: 100px; height: 100px;">
-        <svg width="50" height="50" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-    </div>
-  </div>
-
-  <div id="banner-remoto"></div>
-
   <nav>
     <div style="font-family: 'Dongle', sans-serif; font-size: 30px; color: var(--primary); margin-right: 20px; display: flex; align-items: center; gap: 10px; line-height: 0.6;">
         <img src="https://miramarsupermercado.com.br/wp-content/uploads/2024/10/cropped-icone.png" alt="Logo Miramar" style="width: 40px; height: auto;">
@@ -304,31 +268,7 @@
   <audio id="audioMin" preload="auto"></audio>
   <audio id="audioPreload" preload="auto" style="display:none;"></audio>
 
-  <script>
-    // --- INICIALIZAÇÃO FIREBASE ---
-    const firebaseConfig = {
-      databaseURL: "https://radiomiramar-52436-default-rtdb.firebaseio.com/"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-
-    // ESCUTA REMOTA ATIVA IMEDIATAMENTE
-    database.ref('comando_site/aviso').on('value', (snapshot) => {
-        const msg = snapshot.val();
-        if (!msg) return;
-        
-        console.log("Comando remoto recebido:", msg);
-        
-        if (msg === "TOCAR_AVISO") {
-            triggerUrgentAd();
-            database.ref('comando_site/aviso').set("");
-        } else if (msg === "PROXIMA_MUSICA") {
-            skipToNext();
-            database.ref('comando_site/aviso').set("");
-        }
-    });
-
-    // --- LOGICA DE ÁUDIO ---
+<script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256; 
@@ -343,8 +283,10 @@
 
     const lowShelf = audioCtx.createBiquadFilter();
     lowShelf.type = "lowshelf"; lowShelf.frequency.value = 150; lowShelf.gain.value = 2; 
+    
     const midPeak = audioCtx.createBiquadFilter();
     midPeak.type = "peaking"; midPeak.frequency.value = 1200; midPeak.Q.value = 1; midPeak.gain.value = 3;
+
     const highShelf = audioCtx.createBiquadFilter();
     highShelf.type = "highshelf"; highShelf.frequency.value = 4000; highShelf.gain.value = 1.5;
 
@@ -368,31 +310,7 @@
     let isMuted = false;
     let settings = { showNextBtn: true, allowSeek: true };
 
-    async function unlockAudio() { 
-        if (audioCtx.state === 'suspended') await audioCtx.resume(); 
-    }
-
-    // INICIALIZAÇÃO AUTOMÁTICA DOS DADOS (SEM ÁUDIO AINDA)
-    async function initData() {
-        loadInterfaceSettings();
-        await fetchAllM3U(false);
-        if (Object.keys(musicLibrary).length > 0) {
-            generatePlaylist();
-        }
-    }
-    initData();
-
-    // INICIALIZAÇÃO DO ÁUDIO PELO CLIQUE
-    async function startRadio() {
-        await unlockAudio();
-        document.getElementById('autoplay-overlay').style.display = 'none';
-        if (currentIndex === -1) {
-            play(0); 
-        } else {
-            activePlayer.play();
-        }
-        setupMediaSession();
-    }
+    async function unlockAudio() { if (audioCtx.state === 'suspended') await audioCtx.resume(); }
 
     document.getElementById('muteBtn').onclick = function() {
         isMuted = !isMuted;
@@ -445,6 +363,16 @@
         updateInterfaceSettings();
     }
 
+    window.addEventListener('DOMContentLoaded', async () => {
+        loadInterfaceSettings();
+        await fetchAllM3U(false); 
+        if (Object.keys(musicLibrary).length > 0) {
+            generatePlaylist(); 
+            play(0); 
+        }
+        setupMediaSession();
+    });
+
     function setupMediaSession() {
         if (!('mediaSession' in navigator)) return;
         navigator.mediaSession.setActionHandler('play', () => { activePlayer.play(); updatePlayPauseUI(true); });
@@ -464,10 +392,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -485,7 +413,7 @@
         if (filesP4.length === 0) return;
         filesP4.forEach(file => {
             const link = document.createElement('link');
-            link.rel = 'prefetch'; link.href = file.url;
+            link.rel = 'preload'; link.as = 'audio'; link.href = file.url;
             document.head.appendChild(link);
         });
     }
@@ -601,6 +529,7 @@
       
       tempMusicList.forEach((m, i) => {
         newPlaylist.push(m);
+        // HORA CERTA A CADA 3 MÚSICAS (i % 3 === 0)
         if (i % 3 === 0 && filesP4.length) newPlaylist.push({ isHoraDinamica: true });
         if (filesP3.length > 0) {
           let pool = filesP3.filter(v => !recentP3Urls.includes(v.url));
@@ -650,13 +579,6 @@
 
     async function play(i, manual = false) {
       if (i < 0 || i >= playlist.length) return;
-      
-      // Bloqueio se o overlay estiver visível e for play manual ou remoto
-      if (document.getElementById('autoplay-overlay').style.display !== 'none' && !manual) {
-          currentIndex = i; 
-          return; 
-      }
-
       await unlockAudio();
       const item = playlist[i];
       if (item.isHoraDinamica) { runHora(i); return; }
@@ -677,7 +599,11 @@
       activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som"; });
       document.getElementById('current-title').textContent = item.name;
       updateAlbumArt(item.url, item.name); 
-      
+      if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+              title: item.name, artist: 'Rádio Miramar', album: 'Estúdio Profissional', artwork: [{ src: `./300x300/${item.name.replace(/\//g, '_')}.png`, sizes: '300x300', type: 'image/png' }]
+          });
+      }
       let nextMusicIdx = -1;
       for (let k = i + 1; k < playlist.length; k++) { if (playlist[k].isP1) { nextMusicIdx = k; break; } }
       if (nextMusicIdx !== -1) {
@@ -726,7 +652,7 @@
     }
 
     function triggerUrgentAd() {
-        if (filesAds.length === 0) return;
+        if (filesAds.length === 0) { alert("Playlist de Avisos vazia!"); return; }
         const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
         const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
         const now = audioCtx.currentTime; const fadeTime = 0.5;
@@ -834,7 +760,6 @@
       }
     }
     draw();
-  </script>
+</script>
 </body>
 </html>
-
