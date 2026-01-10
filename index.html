@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VXDKFTRQEJ"></script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HGB5Q74YN"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-    gtag('config', 'G-VXDKFTRQEJ');
+    gtag('config', 'G-0HGB5Q74YN');
 
     setInterval(function() {
       if (typeof gtag === 'function' && !document.hidden) {
@@ -97,7 +97,7 @@
 
     .search-box { position: relative; margin-bottom: 10px; }
     .search-input { width: 100%; background: #0f1115; border: 1px solid #3d4451; padding: 12px; border-radius: 8px; color: #fff; font-size: 0.85rem; }
-    .search-results { position: absolute; top: 100%; left: 0; right: 0; background: #252932; border: 1px solid #3d4451; border-top: none; z-index: 1000; max-height: 400px; overflow-y: auto; display: none; border-radius: 0 0 8px 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .search-results { position: absolute; top: 100%; left: 0; right: 0; background: #252932; border: 1px solid #3d4451; border-top: none; font-size: 0.85rem; z-index: 1000; max-height: 400px; overflow-y: auto; display: none; border-radius: 0 0 8px 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
 
     .search-item { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
     .search-item:last-child { border-bottom: none; }
@@ -271,39 +271,38 @@
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256; // Detalhe das ondas
+    analyser.fftSize = 256; 
     const mainGain = audioCtx.createGain(); 
     
-    // COMPRESSOR (Normalização Profissional)
     const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.setValueAtTime(-24, audioCtx.currentTime);
+    compressor.threshold.setValueAtTime(-40, audioCtx.currentTime); 
     compressor.knee.setValueAtTime(40, audioCtx.currentTime);
-    compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
-    compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+    compressor.ratio.setValueAtTime(12, audioCtx.currentTime); 
+    compressor.attack.setValueAtTime(0.01, audioCtx.currentTime);
     compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
 
-    // EQUALIZADOR (Brilho e Peso)
     const lowShelf = audioCtx.createBiquadFilter();
-    lowShelf.type = "lowshelf"; lowShelf.frequency.value = 200; lowShelf.gain.value = 3;
+    lowShelf.type = "lowshelf"; lowShelf.frequency.value = 150; lowShelf.gain.value = 2; 
+    
+    const midPeak = audioCtx.createBiquadFilter();
+    midPeak.type = "peaking"; midPeak.frequency.value = 1200; midPeak.Q.value = 1; midPeak.gain.value = 3;
+
     const highShelf = audioCtx.createBiquadFilter();
-    highShelf.type = "highshelf"; highShelf.frequency.value = 3000; highShelf.gain.value = 2;
+    highShelf.type = "highshelf"; highShelf.frequency.value = 4000; highShelf.gain.value = 1.5;
 
     const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain(), gainMin = audioCtx.createGain();
     const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds'), audioMin = document.getElementById('audioMin'), audioPreload = document.getElementById('audioPreload');
     
-    gainA.gain.value = 1.0; gainB.gain.value = 1.0; gainAds.gain.value = 1.5; gainMin.gain.value = 1.5;
+    gainA.gain.value = 1.5; gainB.gain.value = 1.5; gainAds.gain.value = 1.5; gainMin.gain.value = 1.5;
     
     [audioA, audioB, audioAds, audioMin].forEach(a => {
         a.crossOrigin = "anonymous";
         const source = audioCtx.createMediaElementSource(a);
         let g = (a === audioA) ? gainA : (a === audioB) ? gainB : (a === audioAds) ? gainAds : gainMin;
-        
-        // CONEXÃO CORRIGIDA: Som -> Gain -> Analyser (Ondas) -> Processamento
         source.connect(g).connect(analyser);
     });
 
-    // CADEIA DE ÁUDIO FINAL
-    analyser.connect(lowShelf).connect(highShelf).connect(compressor).connect(mainGain).connect(audioCtx.destination);
+    analyser.connect(lowShelf).connect(midPeak).connect(highShelf).connect(compressor).connect(mainGain).connect(audioCtx.destination);
 
     let playlist = [], currentIndex = -1, activePlayer = audioA;
     let musicLibrary = {}, filesP3 = [], filesP4 = [], filesAds = [];
@@ -389,20 +388,24 @@
     async function fetchAllM3U(silent = false) {
         const statusBox = document.getElementById('status-pastas');
         if (!silent) { statusBox.style.display = 'block'; statusBox.innerHTML = "Lendo playlists..."; }
+        const oldGenres = Object.keys(musicLibrary);
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
                 if (res.ok) { const text = await res.text(); parseM3U(text, t.type); }
             }
             updateStatusUI();
-            if (!silent) { setupGenreUI(); preloadHours(); }
+            const newGenres = Object.keys(musicLibrary);
+            const hasNew = newGenres.some(g => !oldGenres.includes(g));
+            if (hasNew || !silent) { setupGenreUI(); }
+            if (!silent) { preloadHours(); }
         } catch (e) { if (!silent) statusBox.innerHTML = "❌ Erro ao ler arquivos."; }
     }
 
@@ -450,8 +453,10 @@
       const preset = savedPreset ? JSON.parse(savedPreset) : null;
       const defaultPerc = Math.floor(100 / genres.length);
       genres.forEach((g, idx) => {
-        if (preset && preset[g] !== undefined) { genreMix[g] = preset[g]; } 
-        else { genreMix[g] = (idx === genres.length - 1) ? 100 - (defaultPerc * (genres.length - 1)) : defaultPerc; }
+        if (genreMix[g] === undefined) {
+           if (preset && preset[g] !== undefined) { genreMix[g] = preset[g]; } 
+           else { genreMix[g] = (idx === genres.length - 1) ? 100 - (defaultPerc * (genres.length - 1)) : defaultPerc; }
+        }
         const row = document.createElement('div');
         row.className = "genre-row";
         row.innerHTML = `<div class="genre-info"><span>${g}</span><span id="label-${g}">${genreMix[g]}%</span></div><input type="range" class="genre-slider" data-genre="${g}" min="0" max="100" value="${genreMix[g]}">`;
@@ -460,6 +465,7 @@
       document.querySelectorAll('.genre-slider').forEach(slider => {
         slider.addEventListener('input', (e) => adjustOtherSliders(e.target.dataset.genre, parseInt(e.target.value)));
       });
+      updateSliderUI();
     }
 
     function saveGenrePreset() { localStorage.setItem('miramar_genre_preset', JSON.stringify(genreMix)); alert("Configuração de gêneros salva com sucesso!"); }
@@ -500,38 +506,56 @@
     }
 
     function generatePlaylist() {
-      playlist = []; const MAX_TRACKS = 300; const genres = Object.keys(musicLibrary);
-      let tempMusicList = []; let recentP3Urls = [];
+      let currentPlayingItem = (currentIndex >= 0 && playlist[currentIndex]) ? playlist[currentIndex] : null;
+      let newPlaylist = []; 
+      const MAX_TRACKS = 300; 
+      const genres = Object.keys(musicLibrary);
+      let tempMusicList = []; 
+      let recentP3Urls = [];
+
       genres.forEach(g => {
-        const source = [...musicLibrary[g]].sort(() => Math.random() - 0.5);
-        const count = Math.round(((genreMix[g] || 50) / 100) * MAX_TRACKS);
-        for(let i=0; i<count; i++) {
-          if (tempMusicList.length >= MAX_TRACKS || source.length === 0) break;
-          const music = source.pop(); tempMusicList.push({...music, isP1: true});
+        const weight = genreMix[g] || 0;
+        if (weight > 0) {
+          const source = [...musicLibrary[g]].sort(() => Math.random() - 0.5);
+          const count = Math.round((weight / 100) * MAX_TRACKS);
+          for(let i=0; i<count; i++) {
+            if (source.length === 0) break;
+            tempMusicList.push({...source.pop(), isP1: true});
+          }
         }
       });
+
       tempMusicList.sort(() => Math.random() - 0.5);
+      
       tempMusicList.forEach((m, i) => {
-        playlist.push(m);
-        if (i % 2 === 0 && filesP4.length) playlist.push({ isHoraDinamica: true });
+        newPlaylist.push(m);
+        // HORA CERTA A CADA 3 MÚSICAS (i % 3 === 0)
+        if (i % 3 === 0 && filesP4.length) newPlaylist.push({ isHoraDinamica: true });
         if (filesP3.length > 0) {
           let pool = filesP3.filter(v => !recentP3Urls.includes(v.url));
           if (pool.length === 0) pool = filesP3;
           const chosen = pool[Math.floor(Math.random() * pool.length)];
-          playlist.push({ ...chosen, isP3: true });
+          newPlaylist.push({ ...chosen, isP3: true });
           recentP3Urls.push(chosen.url);
           if (recentP3Urls.length > 3) recentP3Urls.shift();
         }
       });
+
+      if (currentPlayingItem) {
+          playlist = [currentPlayingItem, ...newPlaylist];
+          currentIndex = 0;
+      } else {
+          playlist = newPlaylist;
+          currentIndex = -1;
+      }
       render();
     }
 
-    document.getElementById('build').onclick = () => { generatePlaylist(); play(0); };
+    document.getElementById('build').onclick = () => { generatePlaylist(); };
 
     function updateBufferMonitor() {
         const container = document.getElementById('buffer-display');
         if (!container || playlist.length === 0) return;
-        
         let html = "";
         for (let i = currentIndex; i < currentIndex + 8; i++) {
             if (i < 0 || i >= playlist.length) continue;
@@ -540,32 +564,15 @@
             let isReady = false;
             let typeLabel = item.isP1 ? "Música" : (item.isP3 ? "Vinheta" : "Hora Certa");
             let nameLabel = item.name || "Sincronizando Relógio...";
-
-            if (i === currentIndex) {
-                statusText = "TOCANDO AGORA";
-                isReady = true;
-            } else {
+            if (i === currentIndex) { statusText = "TOCANDO AGORA"; isReady = true; } 
+            else {
                 const isInA = audioA.src.includes(item.url) && audioA.readyState >= 4;
                 const isInB = audioB.src.includes(item.url) && audioB.readyState >= 4;
                 const isInPreload = audioPreload.src.includes(item.url) && audioPreload.readyState >= 4;
-
-                if (isInA || isInB || isInPreload) {
-                    statusText = "OK";
-                    isReady = true;
-                } else if (item.isHoraDinamica) {
-                    statusText = "Dinâmico";
-                }
+                if (isInA || isInB || isInPreload) { statusText = "OK"; isReady = true; } 
+                else if (item.isHoraDinamica) { statusText = "Dinâmico"; }
             }
-
-            html += `
-            <div class="buffer-card ${isReady ? 'ready' : ''}">
-                <div class="buffer-type">${typeLabel} ${i === currentIndex ? '(Ativo)' : ''}</div>
-                <div class="buffer-name">${nameLabel}</div>
-                <div class="buffer-status-row">
-                    <div style="font-size: 0.7rem; color: #777;">Slot #${i}</div>
-                    <div class="status-badge ${statusText === 'OK' ? 'ok' : ''}">${statusText}</div>
-                </div>
-            </div>`;
+            html += `<div class="buffer-card ${isReady ? 'ready' : ''}"><div class="buffer-type">${typeLabel} ${i === currentIndex ? '(Ativo)' : ''}</div><div class="buffer-name">${nameLabel}</div><div class="buffer-status-row"><div style="font-size: 0.7rem; color: #777;">Slot #${i}</div><div class="status-badge ${statusText === 'OK' ? 'ok' : ''}">${statusText}</div></div></div>`;
         }
         container.innerHTML = html;
     }
@@ -575,70 +582,41 @@
       await unlockAudio();
       const item = playlist[i];
       if (item.isHoraDinamica) { runHora(i); return; }
-      
       const prevPlayer = activePlayer;
       const prevGain = (prevPlayer === audioA) ? gainA : gainB;
+      prevPlayer.ontimeupdate = null;
       activePlayer = (prevPlayer === audioA) ? audioB : audioA;
       const activeGain = (activePlayer === audioA) ? gainA : gainB;
-      
-      if (activePlayer.src !== item.url) {
-          activePlayer.src = item.url;
-          activePlayer.load();
-      }
-      
+      if (activePlayer.src !== item.url) { activePlayer.src = item.url; activePlayer.load(); }
       currentIndex = i;
       activeGain.gain.cancelScheduledValues(audioCtx.currentTime);
-      
       const cameFromVinheta = (playlist[i-1] && (playlist[i-1].isP3 || playlist[i-1].isHoraDinamica));
       const isShortEntry = item.isP3 || manual || cameFromVinheta;
       const rampTime = isShortEntry ? 0.02 : 1.2;
-
       activeGain.gain.setValueAtTime(0, audioCtx.currentTime);
       activeGain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + rampTime);
       prevGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + rampTime);
-      
-      activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => {
-          document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som";
-      });
-      
+      activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som"; });
       document.getElementById('current-title').textContent = item.name;
       updateAlbumArt(item.url, item.name); 
-
       if ('mediaSession' in navigator) {
           navigator.mediaSession.metadata = new MediaMetadata({
-              title: item.name, artist: 'Rádio Miramar', album: 'Estúdio Profissional',
-              artwork: [{ src: `./300x300/${item.name.replace(/\//g, '_')}.png`, sizes: '300x300', type: 'image/png' }]
+              title: item.name, artist: 'Rádio Miramar', album: 'Estúdio Profissional', artwork: [{ src: `./300x300/${item.name.replace(/\//g, '_')}.png`, sizes: '300x300', type: 'image/png' }]
           });
       }
-
       let nextMusicIdx = -1;
-      for (let k = i + 1; k < playlist.length; k++) {
-          if (playlist[k].isP1) {
-              nextMusicIdx = k;
-              break;
-          }
-      }
-
+      for (let k = i + 1; k < playlist.length; k++) { if (playlist[k].isP1) { nextMusicIdx = k; break; } }
       if (nextMusicIdx !== -1) {
           const nextMusic = playlist[nextMusicIdx];
-          if (audioPreload.src !== nextMusic.url) {
-              audioPreload.src = nextMusic.url;
-              audioPreload.load();
-          }
+          if (audioPreload.src !== nextMusic.url) { audioPreload.src = nextMusic.url; audioPreload.load(); }
       }
-
       activePlayer.ontimeupdate = function() {
         document.getElementById('progress-fill').style.width = (this.currentTime / this.duration * 100) + "%";
         document.getElementById('time-current').textContent = formatTime(this.currentTime);
         document.getElementById('time-total').textContent = formatTime(this.duration);
-        
         const overlapMargin = (item.isP3) ? 0.5 : 0.8;
-        
         if (!item.overlap && this.duration > 1) {
-            if (this.duration - this.currentTime <= overlapMargin) { 
-                item.overlap = true; 
-                play(i + 1); 
-            }
+            if (this.duration - this.currentTime <= overlapMargin) { item.overlap = true; play(i + 1); }
         }
       };
       activePlayer.onended = () => { if (!item.overlap) play(i + 1); };
@@ -652,28 +630,16 @@
         const mS = "MIN" + now.getMinutes().toString().padStart(2, '0');
         const fH = filesP4.find(f => f.name.includes(hS));
         const fM = filesP4.find(f => f.name.includes(mS));
-        
         if (!fH) return play(idx + 1);
-        
         currentIndex = idx;
         document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes()}`;
-        
-        if(playlist[idx+1] && playlist[idx+1].isP3) {
-            audioPreload.src = playlist[idx+1].url;
-            audioPreload.load();
-        }
-
+        if(playlist[idx+1] && playlist[idx+1].isP3) { audioPreload.src = playlist[idx+1].url; audioPreload.load(); }
         if (fM) { audioMin.src = fM.url; audioMin.load(); }
         audioAds.src = fH.url;
         audioAds.play();
-        
         audioAds.onended = () => { 
-            if (fM) { 
-                audioMin.play(); 
-                audioMin.onended = () => play(idx + 1, true);
-            } else { 
-                play(idx + 1, true); 
-            } 
+            if (fM) { audioMin.play(); audioMin.onended = () => play(idx + 1, true); } 
+            else { play(idx + 1, true); } 
         };
         updateBufferMonitor();
     }
@@ -690,11 +656,9 @@
         const randomAd = filesAds[Math.floor(Math.random() * filesAds.length)];
         const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
         const now = audioCtx.currentTime; const fadeTime = 0.5;
-        
         currentMusicGain.gain.cancelScheduledValues(now);
         currentMusicGain.gain.setValueAtTime(currentMusicGain.gain.value, now);
         currentMusicGain.gain.exponentialRampToValueAtTime(0.08, now + fadeTime);
-        
         const btn = document.getElementById('playAd');
         btn.innerText = "🔊 TOCANDO AGORA (2x)..."; btn.style.background = "#e74c3c";
         let playsCount = 0; audioAds.src = randomAd.url; audioAds.play();
@@ -748,13 +712,7 @@
         for (let i = currentIndex + 1; i < playlist.length; i++) {
             const item = playlist[i];
             if (item.isP1) {
-                html += `
-                <div class="track-item">
-                    <span class="track-name">${item.name}</span>
-                    <button class="remove-btn" onclick="removeTrack(${i})" title="Remover">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    </button>
-                </div>`;
+                html += `<div class="track-item"><span class="track-name">${item.name}</span><button class="remove-btn" onclick="removeTrack(${i})" title="Remover"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></div>`;
                 count++;
             }
             if (count >= 5) break;
@@ -763,20 +721,17 @@
     }
 
     function formatTime(t) { if (isNaN(t)) return "00:00"; const m = Math.floor(t/60), s = Math.floor(t%60); return `${m}:${s<10?'0':''}${s}`; }
-    
     function skipToNext() {
         let nextMusicIdx = -1;
         for (let i = currentIndex + 1; i < playlist.length; i++) { if (playlist[i].isP1) { nextMusicIdx = i; break; } }
         if (nextMusicIdx !== -1) play(nextMusicIdx, true);
     }
-
     document.getElementById('nextBtn').onclick = skipToNext;
 
     function updateAlbumArt(audioUrl, musicName) {
       const img = document.getElementById('album-img'), fb = document.getElementById('fallback-icon');
       const fileNameForArt = musicName.replace(/\//g, '_');
-      const pngPath = `./300x300/${fileNameForArt}.png`;
-      const jpgPath = `./300x300/${fileNameForArt}.jpg`;
+      const pngPath = `./300x300/${fileNameForArt}.png`, jpgPath = `./300x300/${fileNameForArt}.jpg`;
       const showFallback = () => { img.style.display = 'none'; fb.style.display = 'block'; };
       const testPng = new Image();
       testPng.src = pngPath;
@@ -796,16 +751,11 @@
       const data = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(data);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // GRADIENTE CORRIGIDO (O erro estava aqui)
       let g = ctx.createLinearGradient(0, canvas.height, 0, 0);
-      g.addColorStop(0, "rgba(243, 156, 18, 0)"); 
-      g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
-      
+      g.addColorStop(0, "rgba(243, 156, 18, 0)"); g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
       const barW = (canvas.width / data.length) * 2;
       for(let i=0; i<data.length; i++) {
-        let h = data[i] * (canvas.height / 255); 
-        ctx.fillStyle = g;
+        let h = data[i] * (canvas.height / 255); ctx.fillStyle = g;
         ctx.fillRect(i*(barW+2), canvas.height - h, barW, h);
       }
     }
