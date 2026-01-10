@@ -293,7 +293,7 @@
     const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain(), gainMin = audioCtx.createGain();
     const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds'), audioMin = document.getElementById('audioMin'), audioPreload = document.getElementById('audioPreload');
     
-    gainA.gain.value = 1.5; gainB.gain.value = 1.5; gainAds.gain.value = 1.5; gainMin.gain.value = 1.5;
+    gainA.gain.value = 1.5; gainB.gain.value = 1.5; gainAds.gain.value = 5.5; gainMin.gain.value = 1.5;
     
     [audioA, audioB, audioAds, audioMin].forEach(a => {
         a.crossOrigin = "anonymous";
@@ -763,5 +763,6 @@
 </script>
 </body>
 </html>
+
 
 
