@@ -290,60 +290,63 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
   <script>
-    // --- INICIALIZAÇÃO FIREBASE (SUBSTITUA PELOS SEUS DADOS) ---
     const firebaseConfig = {
       databaseURL: "https://radiomiramar-52436-default-rtdb.firebaseio.com/"
     };
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // Identificador único para esta aba do navegador (Studio Instance)
     const studioId = 'studio_' + Math.random().toString(36).substr(2, 9);
+    const startTime = Date.now(); // Marca quando a rádio foi aberta
+    let userData = { ip: "Carregando...", local: "Carregando..." };
 
-    // Função para atualizar o status no Firebase conforme a imagem solicitada
+    // Busca IP e Localização de forma silenciosa
+    fetch('https://ipapi.co/json/').then(res => res.json()).then(data => {
+        userData.ip = data.ip;
+        userData.local = `${data.city}, ${data.region} - ${data.country_name}`;
+    }).catch(() => { userData.ip = "Não obtido"; userData.local = "Privado"; });
+
+    function formatUptime(ms) {
+        let totalSecs = Math.floor(ms / 1000);
+        let h = Math.floor(totalSecs / 3600);
+        let m = Math.floor((totalSecs % 3600) / 60);
+        let s = totalSecs % 60;
+        return `${h}h ${m}m ${s}s`;
+    }
+
     function updateFirebaseStatus(isPlaying) {
         const currentTitle = document.getElementById('current-title').textContent;
+        const uptime = formatUptime(Date.now() - startTime);
+        
         database.ref('status_radio/instancias/' + studioId).set({
             musica_atual: currentTitle || "Parado",
             tocando: isPlaying,
-            ultima_atualizacao: Date.now(),
+            tempo_online: uptime,
+            ip_estudio: userData.ip,
+            localizacao: userData.local,
+            ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP,
             user_agent: navigator.userAgent
         });
     }
 
-    // Listener para o comando remoto de aviso pão ou próxima
+    // Listener para o comando remoto
     database.ref('comando_site/aviso').on('value', (snapshot) => {
         const msg = snapshot.val();
         if (!msg) return;
-
-        if (msg === "TOCAR_AVISO") { 
-            triggerUrgentAd(); 
-        } 
-        else if (msg === "PROXIMA_MUSICA") { 
-            skipToNext(); 
-        } 
-        else if (msg === "TOGGLE_MUTE") { 
-            // Simula o clique no botão de mute para inverter o estado atual
-            document.getElementById('muteBtn').click(); 
-        }
-
-        // Limpa o comando para o Firebase ficar pronto para o próximo
+        if (msg === "TOCAR_AVISO") { triggerUrgentAd(); } 
+        else if (msg === "PROXIMA_MUSICA") { skipToNext(); } 
+        else if (msg === "TOGGLE_MUTE") { document.getElementById('muteBtn').click(); }
         database.ref('comando_site/aviso').set("");
     });
 
-    // Escuta a adição de músicas vinda do controle remoto
     database.ref('comando_site/fila').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data && data.acao === "ADICIONAR") {
-            // Usa a função interna insertMusicByPosition para injetar na lista
             insertMusicByPosition(data.url, data.name, data.posicao);
-            
-            // Limpa o registro da fila após processar a entrada
             database.ref('comando_site/fila').set(null);
         }
     });
 
-    // --- RESTANTE DO CÓDIGO ORIGINAL DA RÁDIO ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256; 
@@ -447,9 +450,12 @@
             play(0); 
         }
         setupMediaSession();
+        // Atualiza o tempo online no Firebase a cada 10 segundos
+        setInterval(() => {
+            updateFirebaseStatus(!activePlayer.paused);
+        }, 10000);
     });
 
-    // Garante que a instância seja removida ao fechar a página
     window.addEventListener('beforeunload', () => {
         database.ref('status_radio/instancias/' + studioId).remove();
     });
@@ -473,10 +479,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -593,7 +599,6 @@
       const genres = Object.keys(musicLibrary);
       let tempMusicList = []; 
       let recentP3Urls = [];
-
       genres.forEach(g => {
         const weight = genreMix[g] || 0;
         if (weight > 0) {
@@ -605,9 +610,7 @@
           }
         }
       });
-
       tempMusicList.sort(() => Math.random() - 0.5);
-      
       tempMusicList.forEach((m, i) => {
         newPlaylist.push(m);
         if (i % 3 === 0 && filesP4.length) newPlaylist.push({ isHoraDinamica: true });
@@ -620,14 +623,8 @@
           if (recentP3Urls.length > 3) recentP3Urls.shift();
         }
       });
-
-      if (currentPlayingItem) {
-          playlist = [currentPlayingItem, ...newPlaylist];
-          currentIndex = 0;
-      } else {
-          playlist = newPlaylist;
-          currentIndex = -1;
-      }
+      if (currentPlayingItem) { playlist = [currentPlayingItem, ...newPlaylist]; currentIndex = 0; } 
+      else { playlist = newPlaylist; currentIndex = -1; }
       render();
     }
 
