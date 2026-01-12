@@ -36,7 +36,6 @@
       --danger: #e74c3c;
     }
 
-    /* Estilo do novo Banner do Telegram */
     #banner-remoto {
       background: #0088cc;
       color: white;
@@ -44,7 +43,7 @@
       padding: 15px;
       font-size: 1.2rem;
       font-weight: bold;
-      display: none; /* Escondido por padrão */
+      display: none; 
       z-index: 9999;
       width: 100%;
       position: relative;
@@ -102,7 +101,48 @@
     .round-btn { width: 70px; height: 70px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: var(--text-main); color: #000; }
     .round-btn:hover { transform: translateY(-3px); background: var(--primary); color: #fff; }
     .btn-secondary { width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: #fff; }
-    .btn-mute.active { color: var(--danger); background: rgba(231, 76, 60, 0.2); }
+
+    .volume-container {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.1);
+      border-radius: 35px;
+      height: 50px;
+      padding: 0 15px;
+      width: 50px; 
+      overflow: hidden;
+      transition: width 0.3s ease, background 0.3s ease;
+      cursor: pointer;
+    }
+    .volume-container:hover {
+      width: 160px; 
+      background: rgba(255,255,255,0.2);
+    }
+    .btn-mute {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      min-width: 24px;
+    }
+    .volume-slider {
+      width: 0;
+      opacity: 0;
+      margin-left: 0;
+      transition: width 0.3s ease, opacity 0.2s ease, margin-left 0.3s ease;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+    .volume-container:hover .volume-slider {
+      width: 90px;
+      opacity: 1;
+      margin-left: 10px;
+    }
+    .btn-mute.active { color: var(--danger); }
 
     .progress-container { width: 90%; max-width: 600px; }
     .bar-bg { background: rgba(255,255,255,0.1); height: 14px; border-radius: 10px; overflow: hidden; position: relative; cursor: pointer; }
@@ -211,9 +251,13 @@
           </div>
           <div id="current-title">Sintonizando...</div>
           <div class="controls-row">
-            <button id="muteBtn" class="round-btn btn-secondary btn-mute" title="Mute/Unmute">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-            </button>
+            <div class="volume-container">
+              <button id="muteBtn" class="btn-mute" title="Mute/Unmute">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+              </button>
+              <input type="range" id="volRange" class="volume-slider" min="0" max="100" value="100">
+            </div>
+
             <button id="playPause" class="round-btn">
               <svg id="icon-play" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
               <svg id="icon-stop" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M6 6h12v12H6z"/></svg>
@@ -297,10 +341,9 @@
     const database = firebase.database();
 
     const studioId = 'studio_' + Math.random().toString(36).substr(2, 9);
-    const startTime = Date.now(); // Marca quando a rádio foi aberta
+    const startTime = Date.now(); 
     let userData = { ip: "Carregando...", local: "Carregando..." };
 
-    // Busca IP e Localização de forma silenciosa
     fetch('https://ipapi.co/json/').then(res => res.json()).then(data => {
         userData.ip = data.ip;
         userData.local = `${data.city}, ${data.region} - ${data.country_name}`;
@@ -329,23 +372,43 @@
         });
     }
 
-    // Listener para o comando remoto
-    database.ref('comando_site/aviso').on('value', (snapshot) => {
-        const msg = snapshot.val();
-        if (!msg) return;
-        if (msg === "TOCAR_AVISO") { triggerUrgentAd(); } 
-        else if (msg === "PROXIMA_MUSICA") { skipToNext(); } 
-        else if (msg === "TOGGLE_MUTE") { document.getElementById('muteBtn').click(); }
-        database.ref('comando_site/aviso').set("");
-    });
+    // LISTENER PARA COMANDOS REMOTOS (RADIO.HTML)
+    const meuCaminhoComando = 'status_radio/instancias/' + studioId;
 
-    database.ref('comando_site/fila').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.acao === "ADICIONAR") {
-            insertMusicByPosition(data.url, data.name, data.posicao);
-            database.ref('comando_site/fila').set(null);
-        }
-    });
+// Listener para Ações (Pular, Aviso, etc)
+database.ref(meuCaminhoComando + '/comando_acao').on('value', (snapshot) => {
+    const msg = snapshot.val();
+    if (!msg) return;
+    
+    if (msg === "TOCAR_AVISO") { triggerUrgentAd(); } 
+    else if (msg === "PROXIMA_MUSICA") { skipToNext(); } 
+    else if (msg === "TOGGLE_MUTE") { document.getElementById('muteBtn').click(); }
+    else if (msg === "TOGGLE_PLAY_PAUSE") { document.getElementById('playPause').click(); }
+    
+    // Limpa o comando após executar para não repetir
+    database.ref(meuCaminhoComando + '/comando_acao').set("");
+});
+
+// Listener para Volume Individual
+database.ref(meuCaminhoComando + '/comando_volume').on('value', (snapshot) => {
+    const vol = snapshot.val();
+    if (vol !== null) {
+        const volValue = parseInt(vol);
+        document.getElementById('volRange').value = volValue;
+        applyVolume(volValue / 100);
+        isMuted = (volValue === 0);
+        document.getElementById('muteBtn').classList.toggle('active', isMuted);
+    }
+});
+
+// Listener para Fila Individual
+database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data && data.acao === "ADICIONAR") {
+        insertMusicByPosition(data.url, data.name, data.posicao);
+        database.ref(meuCaminhoComando + '/comando_fila').set(null);
+    }
+});
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
@@ -390,13 +453,28 @@
 
     async function unlockAudio() { if (audioCtx.state === 'suspended') await audioCtx.resume(); }
 
+    function applyVolume(value) {
+        mainGain.gain.setTargetAtTime(value, audioCtx.currentTime, 0.1);
+    }
+
+    document.getElementById('volRange').oninput = function() {
+        applyVolume(this.value / 100);
+        if (this.value > 0) {
+            isMuted = false;
+            document.getElementById('muteBtn').classList.remove('active');
+        }
+    };
+
     document.getElementById('muteBtn').onclick = function() {
         isMuted = !isMuted;
-        mainGain.gain.setValueAtTime(isMuted ? 0 : 1, audioCtx.currentTime);
-        this.classList.toggle('active', isMuted);
-        this.innerHTML = isMuted ? 
-          `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.41.32-.85.59-1.32.79v2.06c1.02-.22 1.97-.68 2.8-1.32l2.25 2.25L21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>` : 
-          `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`;
+        const volSlider = document.getElementById('volRange');
+        if (isMuted) {
+            applyVolume(0);
+            this.classList.add('active');
+        } else {
+            applyVolume(volSlider.value / 100);
+            this.classList.remove('active');
+        }
     };
 
     document.getElementById('playPause').onclick = function() {
@@ -450,7 +528,6 @@
             play(0); 
         }
         setupMediaSession();
-        // Atualiza o tempo online no Firebase a cada 10 segundos
         setInterval(() => {
             updateFirebaseStatus(!activePlayer.paused);
         }, 10000);
@@ -479,10 +556,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -766,14 +843,25 @@
 
     function insertMusicByPosition(url, name, type) {
         let musicItemsIndices = [];
-        playlist.forEach((item, idx) => { if (item.isP1 && idx > currentIndex) musicItemsIndices.push(idx); });
+        playlist.forEach((item, idx) => { 
+            if (item.isP1 && idx > currentIndex) musicItemsIndices.push(idx); 
+        });
+        const newMusic = { url, name, isP1: true };
         if (musicItemsIndices.length > 0) {
-            const newMusic = { url, name, isP1: true };
-            if (type === 'next') { const targetIdx = musicItemsIndices[0]; playlist.splice(targetIdx, 0, newMusic); } 
-            else { const targetRelativeIndex = Math.min(4, musicItemsIndices.length - 1); const targetIdx = musicItemsIndices[targetRelativeIndex]; playlist.splice(targetIdx + 1, 0, newMusic); }
-        } else { playlist.push({ url, name, isP1: true }); }
+            if (type === 'next') { 
+                const targetIdx = musicItemsIndices[0]; 
+                playlist.splice(targetIdx, 0, newMusic); 
+            } else { 
+                const targetRelativeIndex = Math.min(4, musicItemsIndices.length - 1); 
+                const targetIdx = musicItemsIndices[targetRelativeIndex]; 
+                playlist.splice(targetIdx + 1, 0, newMusic); 
+            }
+        } else { 
+            playlist.push(newMusic); 
+        }
         document.getElementById('search-results').style.display = 'none';
-        document.getElementById('musicSearch').value = ''; render();
+        document.getElementById('musicSearch').value = ''; 
+        render();
     }
 
     function showPage(p) {
@@ -843,4 +931,3 @@
   </script>
 </body>
 </html>
-
