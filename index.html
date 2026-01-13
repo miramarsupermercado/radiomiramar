@@ -191,7 +191,7 @@
 
     #page-buffer { flex: 1; padding: 60px; overflow-y: auto; display: none; background: var(--bg-dark); }
     .buffer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; max-width: 1200px; margin: auto; }
-    .buffer-card { background: var(--card-bg); padding: 20px; border-radius: 15px; border-left: 5px solid #444; }
+    .buffer-grid .buffer-card { background: var(--card-bg); padding: 20px; border-radius: 15px; border-left: 5px solid #444; }
     .buffer-card.ready { border-left-color: var(--accent); }
     .buffer-type { font-size: 0.65rem; text-transform: uppercase; color: var(--primary); font-weight: bold; margin-bottom: 5px; }
     .buffer-name { font-size: 0.9rem; font-weight: 600; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -340,7 +340,12 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    const studioId = 'studio_' + Math.random().toString(36).substr(2, 9);
+    let studioId = localStorage.getItem('miramar_studio_id');
+    if (!studioId) {
+        studioId = 'studio_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('miramar_studio_id', studioId);
+    }
+
     const startTime = Date.now(); 
     let userData = { ip: "Carregando...", local: "Carregando..." };
 
@@ -357,58 +362,62 @@
         return `${h}h ${m}m ${s}s`;
     }
 
+    // IMPLEMENTAÇÃO SOLICITADA: Bloco de escuta do Firebase e comandos remotos
+    database.ref(`status_radio/instancias/${studioId}`).on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        // 1. Escuta comandos de volume vindos do controle remoto
+        if (data.comando_volume !== undefined && data.comando_volume !== null) {
+            const novoVolume = data.comando_volume / 100;
+            // No seu código o volume é controlado pelo mainGain.gain (AudioContext)
+            if (typeof applyVolume === 'function') {
+                document.getElementById('volRange').value = data.comando_volume;
+                applyVolume(novoVolume);
+            }
+        }
+
+        // 2. Processa outros comandos (Ação, Mensagem, Fila)
+        if (data.comando_acao) {
+            // Mapeamento para as funções existentes no seu código
+            const cmd = data.comando_acao;
+            if (cmd === "TOCAR_AVISO") { triggerUrgentAd(); } 
+            else if (cmd === "PROXIMA_MUSICA") { skipToNext(); } 
+            else if (cmd === "TOGGLE_MUTE") { document.getElementById('muteBtn').click(); }
+            
+            database.ref(`status_radio/instancias/${studioId}/comando_acao`).remove();
+        }
+        
+        if (data.comando_mensagem) {
+            // Função placeholder caso queira implementar exibição de texto na tela futuramente
+            console.log("Mensagem remota:", data.comando_mensagem);
+            database.ref(`status_radio/instancias/${studioId}/comando_mensagem`).remove();
+        }
+
+        if (data.comando_fila && data.comando_fila.acao === "ADICIONAR") {
+            insertMusicByPosition(data.comando_fila.url, data.comando_fila.name, data.comando_fila.posicao);
+            database.ref(`status_radio/instancias/${studioId}/comando_fila`).remove();
+        }
+    });
+
+    // IMPLEMENTAÇÃO SOLICITADA: Função de atualizar status enviando o volume atual
     function updateFirebaseStatus(isPlaying) {
         const currentTitle = document.getElementById('current-title').textContent;
         const uptime = formatUptime(Date.now() - startTime);
+        const currentVol = document.getElementById('volRange').value;
         
-        database.ref('status_radio/instancias/' + studioId).set({
+        const status = {
             musica_atual: currentTitle || "Parado",
             tocando: isPlaying,
             tempo_online: uptime,
             ip_estudio: userData.ip,
             localizacao: userData.local,
-            ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP,
-            user_agent: navigator.userAgent
-        });
+            comando_volume: parseInt(currentVol), // Envia o volume atual (0-100) para o remoto monitorar
+            ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
+        };
+        
+        database.ref('status_radio/instancias/' + studioId).update(status);
     }
-
-    // LISTENER PARA COMANDOS REMOTOS (RADIO.HTML)
-    const meuCaminhoComando = 'status_radio/instancias/' + studioId;
-
-// Listener para Ações (Pular, Aviso, etc)
-database.ref(meuCaminhoComando + '/comando_acao').on('value', (snapshot) => {
-    const msg = snapshot.val();
-    if (!msg) return;
-    
-    if (msg === "TOCAR_AVISO") { triggerUrgentAd(); } 
-    else if (msg === "PROXIMA_MUSICA") { skipToNext(); } 
-    else if (msg === "TOGGLE_MUTE") { document.getElementById('muteBtn').click(); }
-    else if (msg === "TOGGLE_PLAY_PAUSE") { document.getElementById('playPause').click(); }
-    
-    // Limpa o comando após executar para não repetir
-    database.ref(meuCaminhoComando + '/comando_acao').set("");
-});
-
-// Listener para Volume Individual
-database.ref(meuCaminhoComando + '/comando_volume').on('value', (snapshot) => {
-    const vol = snapshot.val();
-    if (vol !== null) {
-        const volValue = parseInt(vol);
-        document.getElementById('volRange').value = volValue;
-        applyVolume(volValue / 100);
-        isMuted = (volValue === 0);
-        document.getElementById('muteBtn').classList.toggle('active', isMuted);
-    }
-});
-
-// Listener para Fila Individual
-database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (data && data.acao === "ADICIONAR") {
-        insertMusicByPosition(data.url, data.name, data.posicao);
-        database.ref(meuCaminhoComando + '/comando_fila').set(null);
-    }
-});
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
@@ -530,11 +539,7 @@ database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
         setupMediaSession();
         setInterval(() => {
             updateFirebaseStatus(!activePlayer.paused);
-        }, 10000);
-    });
-
-    window.addEventListener('beforeunload', () => {
-        database.ref('status_radio/instancias/' + studioId).remove();
+        }, 1000);
     });
 
     function setupMediaSession() {
@@ -556,10 +561,10 @@ database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -571,15 +576,6 @@ database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
             if (hasNew || !silent) { setupGenreUI(); }
             if (!silent) { preloadHours(); }
         } catch (e) { if (!silent) statusBox.innerHTML = "❌ Erro ao ler arquivos."; }
-    }
-
-    function preloadHours() {
-        if (filesP4.length === 0) return;
-        filesP4.forEach(file => {
-            const link = document.createElement('link');
-            link.rel = 'preload'; link.as = 'audio'; link.href = file.url;
-            document.head.appendChild(link);
-        });
     }
 
     function parseM3U(text, type) {
@@ -753,6 +749,12 @@ database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
       activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som"; });
       document.getElementById('current-title').textContent = item.name;
       updateAlbumArt(item.url, item.name); 
+
+      if (item.isP1) {
+          const nomeLimpo = item.name.normalize("NFD").replace(/\//g, ",").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9&(),-:]/g, " ").replace(/-+/g, "-");
+          database.ref(`status_radio/instancias/${studioId}/ranking_estudio/${nomeLimpo}`).transaction((current) => (current || 0) + 1);
+      }
+
       if ('mediaSession' in navigator) {
           navigator.mediaSession.metadata = new MediaMetadata({
               title: item.name, artist: 'Rádio Miramar', album: 'Estúdio Profissional', artwork: [{ src: `./300x300/${item.name.replace(/\//g, '_')}.png`, sizes: '300x300', type: 'image/png' }]
@@ -765,9 +767,17 @@ database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
           if (audioPreload.src !== nextMusic.url) { audioPreload.src = nextMusic.url; audioPreload.load(); }
       }
       activePlayer.ontimeupdate = function() {
+        const remaining = this.duration - this.currentTime; // Cálculo do tempo restante
+        
         document.getElementById('progress-fill').style.width = (this.currentTime / this.duration * 100) + "%";
         document.getElementById('time-current').textContent = formatTime(this.currentTime);
         document.getElementById('time-total').textContent = formatTime(this.duration);
+        
+        // Atualiza o Firebase com o tempo restante formatado
+        database.ref('status_radio/instancias/' + studioId).update({
+            tempo_restante: formatTime(remaining)
+        });
+
         const overlapMargin = (item.isP3) ? 0.5 : 0.8;
         if (!item.overlap && this.duration > 1) {
             if (this.duration - this.currentTime <= overlapMargin) { item.overlap = true; play(i + 1); }
@@ -889,6 +899,7 @@ database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
     }
 
     function formatTime(t) { if (isNaN(t)) return "00:00"; const m = Math.floor(t/60), s = Math.floor(t%60); return `${m}:${s<10?'0':''}${s}`; }
+    
     function skipToNext() {
         let nextMusicIdx = -1;
         for (let i = currentIndex + 1; i < playlist.length; i++) { if (playlist[i].isP1) { nextMusicIdx = i; break; } }
@@ -931,4 +942,3 @@ database.ref(meuCaminhoComando + '/comando_fila').on('value', (snapshot) => {
   </script>
 </body>
 </html>
-
