@@ -332,8 +332,11 @@
             todasKeys.forEach(key => {
                 const inst = data[key];
                 const isSelected = selecionados.has(key);
-                const volumeAtual = inst.comando_volume !== undefined ? inst.comando_volume : 100;
-                /* IMPLEMENTAÇÃO DO TEMPO RESTANTE NO JS */
+                
+                // SINCRONIZAÇÃO EM TEMPO REAL: Pega o volume que vem da rádio (volume_atual) 
+                // ou o comando pendente (comando_volume)
+                const volumeAtual = inst.volume_atual !== undefined ? inst.volume_atual : (inst.comando_volume !== undefined ? inst.comando_volume : 100);
+                
                 const tempoRestante = inst.tempo_restante || '00:00';
                 
                 let rankingHtml = "";
@@ -350,6 +353,9 @@
                 const card = document.createElement('div');
                 card.className = `card ${isSelected ? 'selected' : ''}`;
                 card.onclick = () => toggleSelect(key);
+                
+                // LÓGICA DE ATUALIZAÇÃO DO SLIDER: Só atualiza o valor se o usuário não estiver mexendo nele
+                const sliderId = `vol-${key}`;
                 card.innerHTML = `
                     <div class="checkbox-container">
                         <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();" onchange="toggleSelect('${key}')">
@@ -367,13 +373,14 @@
                     <div class="volume-individual" onclick="event.stopPropagation()">
                         <div class="vol-label">
                             <span>🔈 VOLUME ATUAL</span>
-                            <span>${volumeAtual}%</span>
+                            <span id="label-${sliderId}">${volumeAtual}%</span>
                         </div>
-                        <input type="range" min="0" max="100" value="${volumeAtual}" 
+                        <input type="range" id="${sliderId}" min="0" max="100" value="${volumeAtual}" 
                             oninput="ajustarVolumeIndividual('${key}', this.value)">
                     </div>
                 `;
                 grid.appendChild(card);
+                
                 const rankCard = document.createElement('div');
                 rankCard.className = "card";
                 rankCard.innerHTML = `
@@ -393,6 +400,8 @@
             else { todasKeys.forEach(k => selecionados.add(k)); }
         }
         function ajustarVolumeIndividual(id, val) {
+            // Atualiza o texto da porcentagem imediatamente no remoto
+            document.getElementById(`label-vol-${id}`).innerText = val + '%';
             db.ref(`status_radio/instancias/${id}/comando_volume`).set(parseInt(val));
         }
         async function enviarComando(comando) {
