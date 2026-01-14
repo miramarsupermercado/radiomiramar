@@ -371,6 +371,7 @@
             tempo_online: uptime,
             ip_estudio: userData.ip,
             localizacao: userData.local,
+            volume_atual: document.getElementById('volRange').value,
             ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
         });
     }
@@ -451,6 +452,7 @@
 
     function applyVolume(value) {
         mainGain.gain.setTargetAtTime(value, audioCtx.currentTime, 0.1);
+        updateFirebaseStatus(!activePlayer.paused);
     }
 
     document.getElementById('volRange').oninput = function() {
@@ -526,7 +528,7 @@
         setupMediaSession();
         setInterval(() => {
             updateFirebaseStatus(!activePlayer.paused);
-        }, 5000);
+        }, 1000);
     });
 
     function setupMediaSession() {
@@ -548,10 +550,10 @@
         musicLibrary = {}; filesP3 = []; filesP4 = []; filesAds = [];
         try {
             const targets = [
-                { name: './MUSICAS.m3u', type: 'musicas' },
-                { name: './VINHETAS.m3u', type: 'vinhetas' },
-                { name: './HORA.m3u', type: 'hora' },
-                { name: './AVISO.m3u', type: 'aviso' }
+                { name: 'Musicas.m3u', type: 'musicas' },
+                { name: 'Vinhetas.m3u', type: 'vinhetas' },
+                { name: 'Hora.m3u', type: 'hora' },
+                { name: 'Aviso.m3u', type: 'aviso' }
             ];
             for (const t of targets) {
                 const res = await fetch('./' + t.name + '?t=' + Date.now());
@@ -931,4 +933,3 @@
   </script>
 </body>
 </html>
-
