@@ -16,6 +16,8 @@
             --accent: #2ecc71;
             --danger: #e74c3c;
             --recording: #ff4757;
+            --purple: #9b59b6;
+            --ai: #00d2ff;
         }
         body {
             font-family: 'Inter', sans-serif;
@@ -78,6 +80,15 @@
             gap: 10px;
             margin-top: 10px;
         }
+        .ai-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+            padding: 10px;
+            background: rgba(0, 210, 255, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(0, 210, 255, 0.2);
+        }
         .msg-input {
             flex: 1;
             padding: 10px;
@@ -100,6 +111,8 @@
         .btn-orange { background: var(--primary); color: white; }
         .btn-red { background: #e74c3c; color: white; }
         .btn-blue { background: #3498db; color: white; }
+        .btn-purple { background: var(--purple); color: white; }
+        .btn-ai { background: var(--ai); color: #000; }
         .btn-muted-active { background: var(--danger) !important; color: white !important; }
         .btn-select { background: #555; color: white; }
         .btn-clean { background: transparent; color: #777; border: 1px solid #444; font-size: 0.6rem; padding: 5px 10px; margin-top: 10px; }
@@ -299,11 +312,20 @@
         <div class="controles-gerais">
             <div class="botoes-row">
                 <button class="btn-select" onclick="toggleSelectAll()">Selecionar Todos</button>
+                <button onclick="atualizarNavegadorRemoto()">🔄 Atualizar Navegador</button>
                 <button class="btn-orange" onclick="enviarComando('PROXIMA_MUSICA')">Pular Música</button>
                 <button id="btnMuteMaster" class="btn-blue" onclick="enviarComando('TOGGLE_MUTE')">Mute/Unmute</button>
                 <button class="btn-red" onclick="enviarComando('TOCAR_AVISO')">📢 Aviso Pão</button>
                 <button id="btnRecord" class="btn-record" onclick="toggleGravarLocucao()">🎤 Locução em HD</button>
+                <button class="btn-purple" onclick="document.getElementById('fileUpload').click()">📁 Enviar Áudios HQ</button>
+                <input type="file" id="fileUpload" style="display: none;" accept="audio/*" multiple onchange="processarArquivosAudio(this)">
             </div>
+            
+            <div class="ai-row">
+                <input type="text" id="placaInput" class="msg-input" placeholder="Digite a placa (ex: ABC-1234)...">
+                <button class="btn-ai" onclick="gerarLocucaoIA()">🤖 Anunciar Placa</button>
+            </div>
+
             <div class="msg-row">
                 <input type="text" id="msgInput" class="msg-input" placeholder="Enviar mensagem para o ecrã do estúdio...">
                 <button class="btn-blue" onclick="enviarMensagem()">Enviar Msg</button>
@@ -362,6 +384,7 @@
         }
 
         function parseM3U(text) {
+            bibliotecaMusicas = []; // Limpa para evitar duplicados
             const lines = text.split(/\r?\n/);
             let currentName = "";
             for (let line of lines) {
@@ -390,43 +413,94 @@
             `).join('');
         }
 
+        async function processarArquivosAudio(input) {
+            if (selecionados.size === 0) {
+                alert("Selecione um estúdio primeiro!");
+                input.value = "";
+                return;
+            }
+            const files = Array.from(input.files);
+            if (files.length === 0) return;
+            showToast(`Processando ${files.length} áudios...`);
+            for (const file of files) {
+                if (file.size > 7 * 1024 * 1024) {
+                    alert(`O áudio ${file.name} é muito grande (Máximo 7MB).`);
+                    continue;
+                }
+                try {
+                    const base64 = await convertFileToBase64(file);
+                    await enviarAudioBase64Sincrono(base64, "📁 " + file.name.toUpperCase());
+                    showToast(`Enviado: ${file.name}`);
+                } catch (err) {
+                    console.error("Erro no processamento:", file.name, err);
+                }
+            }
+            input.value = ""; 
+        }
+
+        function convertFileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function enviarAudioBase64Sincrono(base64, nomeDisplay) {
+            const promises = Array.from(selecionados).map(id => {
+                return db.ref(`status_radio/instancias/${id}/comando_fila`).set({
+                    acao: "ADICIONAR",
+                    url: base64,
+                    name: nomeDisplay,
+                    posicao: "next",
+                    timestamp: Date.now()
+                    
+                });
+            });
+            return Promise.all(promises);
+        }
+
+        async function gerarLocucaoIA() {
+            const placa = document.getElementById('placaInput').value.trim();
+            if (!placa) return alert("Digite a placa!");
+            if (selecionados.size === 0) return alert("Selecione um estúdio!");
+
+            const placaSoletrada = placa.toUpperCase().split('').join(' ');
+            const texto = `Atenção! o proprietário do veículo de placa... ${placaSoletrada}. favor comparecer à recepção.`;
+            
+            const promises = Array.from(selecionados).map(id => {
+                return db.ref(`status_radio/instancias/${id}/comando_fila`).set({
+                    acao: "FALAR_TEXTO", 
+                    texto: texto,
+                    name: `🤖 PLACA: ${placa.toUpperCase()}`,
+                    timestamp: Date.now()
+                });
+            });
+
+            await Promise.all(promises);
+            showToast("Comando de voz enviado!");
+            document.getElementById('placaInput').value = "";
+        }
+
         async function toggleGravarLocucao() {
             if (selecionados.size === 0) return alert("Selecione um estúdio!");
             const btn = document.getElementById('btnRecord');
-            
             if (!isRecording) {
                 try {
-                    // CONFIGURAÇÃO DE ALTA QUALIDADE
                     const stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: {
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true,
-                            sampleRate: 48000
-                        } 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
                     });
-
-                    // Tenta usar Opus (melhor qualidade para rádio)
-                    let options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 };
-                    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                        options = { audioBitsPerSecond: 128000 };
-                    }
-
-                    mediaRecorder = new MediaRecorder(stream, options);
+                    mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    
                     mediaRecorder.onstop = async () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const reader = new FileReader();
-                        reader.readAsDataURL(audioBlob); 
-                        reader.onloadend = () => {
-                            const base64data = reader.result;
-                            enviarAudioBase64(base64data);
-                        };
+                        const base64data = await convertFileToBase64(audioBlob);
+                        await enviarAudioBase64Sincrono(base64data, "🎤 LOCUÇÃO HD");
+                        showToast("Áudio HD enviado!");
                         stream.getTracks().forEach(t => t.stop());
                     };
-
                     mediaRecorder.start();
                     isRecording = true;
                     btn.innerText = "🛑 Parar e Enviar HD";
@@ -439,20 +513,6 @@
                 btn.innerText = "🎤 Locução em HD";
                 btn.classList.remove('recording-pulse');
             }
-        }
-
-        function enviarAudioBase64(base64) {
-            showToast("Transmitindo áudio HD...");
-            selecionados.forEach(id => {
-                db.ref(`status_radio/instancias/${id}/comando_fila`).set({
-                    acao: "ADICIONAR",
-                    url: base64,
-                    name: "🎤 LOCUÇÃO HD",
-                    posicao: "next",
-                    timestamp: Date.now()
-                });
-            });
-            showToast("Áudio HD enviado!");
         }
 
         db.ref('status_radio/instancias').on('value', (snapshot) => {
@@ -479,83 +539,69 @@
                 const inst = data[key];
                 const isSelected = selecionados.has(key);
                 const estaMutado = inst.mutado === true;
+                let nomeExibicao = key;
+
+                if (inst.ip_studio === "2804:9f8:4780:89c1:f9a9:22d0:47a9:5400") {
+                    nomeExibicao = "STUDIO HOME";
+                }
 
                 if (isSelected && estaMutado) algumMutadoSelecionado = true;
 
-                let volumeContent = "";
-                if (estaMutado) {
-                    volumeContent = `<div class="mute-label-big">🔇 MUTADO</div>`;
-                } else {
-                    const volumeAtual = inst.volume_atual !== undefined ? inst.volume_atual : 100;
-                    const sliderId = `vol-${key}`;
-                    volumeContent = `
-                        <div class="volume-individual" onclick="event.stopPropagation()">
-                            <div class="vol-label">
-                                <span>🔈 VOLUME ATUAL</span>
-                                <span id="label-${sliderId}">${volumeAtual}%</span>
-                            </div>
-                            <input type="range" id="${sliderId}" min="0" max="100" value="${volumeAtual}" 
-                                oninput="ajustarVolumeIndividual('${key}', this.value)">
-                        </div>
-                    `;
-                }
+                let volumeContent = estaMutado ? `<div class="mute-label-big">🔇 MUTADO</div>` : `
+                    <div class="volume-individual" onclick="event.stopPropagation()">
+                        <div class="vol-label"><span>🔈 VOLUME ATUAL</span><span id="label-vol-${key}">${inst.volume_atual || 100}%</span></div>
+                        <input type="range" id="vol-${key}" min="0" max="100" value="${inst.volume_atual || 100}" oninput="ajustarVolumeIndividual('${key}', this.value)">
+                    </div>
+                `;
 
                 const card = document.createElement('div');
                 card.className = `card ${isSelected ? 'selected' : ''} ${estaMutado ? 'muted-card' : ''}`;
                 card.onclick = () => toggleSelect(key);
                 card.innerHTML = `
-                    <div class="checkbox-container">
-                        <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();" onchange="toggleSelect('${key}')">
-                    </div>
-                    <span class="instancia-nome">ESTÚDIO ID: ${key}</span>
+                    <div class="checkbox-container"><input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();" onchange="toggleSelect('${key}')"></div>
+                    <span class="instancia-nome">ESTÚDIO ID: ${nomeExibicao}</span>
                     <span class="musica-atual">${inst.musica_atual || 'Sintonizando...'}</span>
                     <div class="info-row">📍 ${inst.localizacao || 'Local desconhecido'}</div>
                     <div class="info-row">⏱️ Online: ${inst.tempo_online || '---'}</div>
                     <div class="info-row">
-                        <span class="status-badge ${inst.tocando ? 'playing' : 'paused'}">
-                            ${inst.tocando ? '● NO AR' : '○ PAUSADO'}
-                        </span>
+                        <span class="status-badge ${inst.tocando ? 'playing' : 'paused'}">${inst.tocando ? '● NO AR' : '○ PAUSADO'}</span>
                         <span class="tempo-restante">⏳ Restam: ${inst.tempo_restante || '00:00'}</span>
                     </div>
                     ${volumeContent}
                 `;
                 grid.appendChild(card);
                 
-                let rankingHtml = "";
                 if (inst.ranking_estudio) {
                     const sorted = Object.entries(inst.ranking_estudio).sort((a,b) => b[1] - a[1]).slice(0, 10);
-                    rankingHtml = `<div class="mini-ranking"><h4>🏆 TOP 10</h4>`;
-                    sorted.forEach(([musica, qtd]) => {
-                        rankingHtml += `<div class="ranking-item-row"><span>${musica}</span><b>${qtd}x</b></div>`;
-                    });
+                    let rankingHtml = `<div class="mini-ranking"><h4>🏆 TOP 10</h4>`;
+                    sorted.forEach(([musica, qtd]) => { rankingHtml += `<div class="ranking-item-row"><span>${musica}</span><b>${qtd}x</b></div>`; });
                     rankingHtml += `</div>`;
+                    const rankCard = document.createElement('div');
+                    rankCard.className = "card";
+                    rankCard.innerHTML = `<span class="instancia-nome">RANKING: ${nomeExibicao}</span>${rankingHtml}`;
+                    rankingGrid.appendChild(rankCard);
                 }
-                const rankCard = document.createElement('div');
-                rankCard.className = "card";
-                rankCard.innerHTML = `<span class="instancia-nome">RANKING: ${key}</span>${rankingHtml}`;
-                rankingGrid.appendChild(rankCard);
             });
 
             const btnMute = document.getElementById('btnMuteMaster');
             if (btnMute) {
-                if (algumMutadoSelecionado) {
-                    btnMute.innerText = "🔇 Mutado (Unmute)";
-                    btnMute.classList.add('btn-muted-active');
-                } else {
-                    btnMute.innerText = "🔊 Mute/Unmute";
-                    btnMute.classList.remove('btn-muted-active');
-                }
+                btnMute.innerText = algumMutadoSelecionado ? "🔇 Mutado (Unmute)" : "🔊 Mute/Unmute";
+                algumMutadoSelecionado ? btnMute.classList.add('btn-muted-active') : btnMute.classList.remove('btn-muted-active');
             }
         });
 
-        function toggleSelect(id) {
-            if (selecionados.has(id)) { selecionados.delete(id); }
-            else { selecionados.add(id); }
+        function toggleSelect(id) { 
+            selecionados.has(id) ? selecionados.delete(id) : selecionados.add(id); 
+            db.ref(`status_radio/instancias/${id}/_ping`).set(Date.now());
         }
 
-        function toggleSelectAll() {
-            if (selecionados.size === todasKeys.length) { selecionados.clear(); }
-            else { todasKeys.forEach(k => selecionados.add(k)); }
+        function toggleSelectAll() { 
+            if (selecionados.size === todasKeys.length) {
+                selecionados.clear();
+            } else {
+                todasKeys.forEach(k => selecionados.add(k));
+            }
+            db.ref('status_radio/instancias').once('value', () => {});
         }
 
         function ajustarVolumeIndividual(id, val) {
@@ -565,37 +611,48 @@
         }
 
         async function enviarComando(comando) {
-            if (selecionados.size === 0) return alert("Por favor, selecione ao menos um estúdio.");
-            selecionados.forEach(id => {
-                db.ref(`status_radio/instancias/${id}/comando_acao`).set(comando);
-            });
+            if (selecionados.size === 0) return alert("Selecione um estúdio.");
+            const promises = Array.from(selecionados).map(id => db.ref(`status_radio/instancias/${id}/comando_acao`).set(comando));
+            await Promise.all(promises);
             showToast("Comando enviado!");
         }
 
-        function enviarMensagem() {
+        // FUNÇÃO DE ATUALIZAR NAVEGADOR (REMOTO)
+        async function atualizarNavegadorRemoto() {
+            if (selecionados.size === 0) return alert("Selecione um estúdio para atualizar.");
+            if (confirm("Deseja realmente reiniciar o navegador dos estúdios selecionados?")) {
+                const promises = Array.from(selecionados).map(id => {
+                    return db.ref(`status_radio/instancias/${id}/comando_atualizar`).set(true);
+                });
+                await Promise.all(promises);
+                showToast("Comando de reinicialização enviado!");
+            }
+        }
+
+        async function enviarMensagem() {
             const msg = document.getElementById('msgInput').value;
             if (!msg || selecionados.size === 0) return alert("Selecione um estúdio!");
-            selecionados.forEach(id => {
-                db.ref(`status_radio/instancias/${id}/comando_mensagem`).set(msg);
-            });
+            const promises = Array.from(selecionados).map(id => db.ref(`status_radio/instancias/${id}/comando_mensagem`).set(msg));
+            await Promise.all(promises);
             document.getElementById('msgInput').value = "";
             showToast("Mensagem enviada!");
         }
 
-        function adicionarFila(url, nome, posicao) {
+        async function adicionarFila(url, nome, posicao) {
             if (selecionados.size === 0) return alert("Selecione um estúdio!");
-            selecionados.forEach(id => {
-                db.ref(`status_radio/instancias/${id}/comando_fila`).set({
+            const promises = Array.from(selecionados).map(id => {
+                return db.ref(`status_radio/instancias/${id}/comando_fila`).set({
                     acao: "ADICIONAR", url: url, name: nome, posicao: posicao, timestamp: Date.now()
                 });
             });
+            await Promise.all(promises);
             showToast(`${nome} adicionada!`);
         }
 
         function limparEstudiosAntigos() {
-            if (confirm("Deseja remover estúdios fantasma?")) {
-                db.ref('status_radio/instancias').remove();
-                selecionados.clear();
+            if (confirm("Deseja remover estúdios fantasma? Isso limpará a lista e eles reaparecerão conforme se conectarem.")) { 
+                db.ref('status_radio/instancias').remove(); 
+                selecionados.clear(); 
             }
         }
         carregarBiblioteca();
