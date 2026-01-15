@@ -329,6 +329,7 @@
   <audio id="audioAds" preload="auto"></audio>
   <audio id="audioMin" preload="auto"></audio>
   <audio id="audioPreload" preload="auto" style="display:none;"></audio>
+  <audio id="audioTTS" preload="auto"></audio>
 
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -340,8 +341,14 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // CORREÇÃO: studioId fixo para que todos os endereços compartilhem o mesmo canal
-    const studioId = 'estudio_miramar_principal'; 
+    // SUBSTITUA PELA SUA CHAVE DE API DO GOOGLE CLOUD
+    const GOOGLE_CLOUD_TTS_KEY = 'AIzaSyD4B7DIpj9Okigx91oiydpxR0ueEqCYbds';
+
+    let studioId = localStorage.getItem('miramar_studio_id');
+    if (!studioId) {
+        studioId = 'ESTUDIO-' + Math.random().toString(36).substr(2, 4).toUpperCase();
+        localStorage.setItem('miramar_studio_id', studioId);
+    }
 
     const startTime = Date.now(); 
     let userData = { ip: "Carregando...", local: "Carregando..." };
@@ -349,7 +356,10 @@
     fetch('https://ipapi.co/json/').then(res => res.json()).then(data => {
         userData.ip = data.ip;
         userData.local = `${data.city}, ${data.region} - ${data.country_name}`;
-    }).catch(() => { userData.ip = "Não obtido"; userData.local = "Privado"; });
+    }).catch(() => { 
+        userData.ip = "Não obtido"; 
+        userData.local = "Privado"; 
+    });
 
     function formatUptime(ms) {
         let totalSecs = Math.floor(ms / 1000);
@@ -370,23 +380,29 @@
             tocando: isPlaying,
             mutado: isMuted,
             tempo_online: uptime,
-            ip_estudio: userData.ip,
+            ip_studio: userData.ip, 
             localizacao: userData.local,
             volume_atual: document.getElementById('volRange').value,
             ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
         });
     }
 
-    // LISTENER PARA COMANDOS REMOTOS (RADIO.HTML)
     database.ref('status_radio/instancias/' + studioId + '/comando_acao').on('value', (snapshot) => {
         const cmd = snapshot.val();
         if (!cmd) return;
-        
         if (cmd === "TOCAR_AVISO") { triggerUrgentAd(); } 
         else if (cmd === "PROXIMA_MUSICA") { skipToNext(); } 
         else if (cmd === "TOGGLE_MUTE") { document.getElementById('muteBtn').click(); }
-        
         database.ref('status_radio/instancias/' + studioId + '/comando_acao').set("");
+    });
+
+    // IMPLEMENTAÇÃO DO COMANDO DE ATUALIZAÇÃO DO NAVEGADOR
+    database.ref('status_radio/instancias/' + studioId + '/comando_atualizar').on('value', (snapshot) => {
+        const reset = snapshot.val();
+        if (reset === true) {
+            database.ref('status_radio/instancias/' + studioId + '/comando_atualizar').set(false);
+            location.reload();
+        }
     });
 
     database.ref('status_radio/instancias/' + studioId + '/comando_volume').on('value', (snapshot) => {
@@ -399,11 +415,76 @@
         }
     });
 
+    async function speakOfficialGoogleTTS(text) {
+        const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_CLOUD_TTS_KEY}`;
+        const data = {
+            input: { text: text },
+            voice: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-B' }, 
+            audioConfig: { audioEncoding: 'MP3', pitch: 0.5, speakingRate: 1.1, }
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.audioContent) {
+                const audioTTS = document.getElementById('audioTTS');
+                audioTTS.src = "data:audio/mp3;base64," + result.audioContent;
+                audioTTS.play();
+            } else {
+                console.error("Erro na API Google TTS:", result);
+            }
+        } catch (error) {
+            console.error("Erro ao processar TTS:", error);
+        }
+    }
+
     database.ref('status_radio/instancias/' + studioId + '/comando_fila').on('value', (snapshot) => {
         const data = snapshot.val();
-        if (data && data.acao === "ADICIONAR") {
-            insertMusicByPosition(data.url, data.name, data.posicao);
-            database.ref('status_radio/instancias/' + studioId + '/comando_fila').set(null);
+        if (data) {
+            if (data.acao === "ADICIONAR") {
+                insertMusicByPosition(data.url, data.name, data.posicao);
+                database.ref('status_radio/instancias/' + studioId + '/comando_fila').set(null);
+            } else if (data.acao === "FALAR_TEXTO") {
+    // 1. Identifica qual player de música está ativo para baixar o volume dele
+    const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
+    const now = audioCtx.currentTime;
+
+    // 2. Ducking: Abaixa o volume da música suavemente para 10% (0.1)
+    currentMusicGain.gain.cancelScheduledValues(now);
+    currentMusicGain.gain.linearRampToValueAtTime(0.1, now + 0.5);
+
+    // 3. Define o volume da VOZ (gainTTS) - ajuste o 1.8 se quiser mais alto ou baixo
+    gainTTS.gain.cancelScheduledValues(now);
+    gainTTS.gain.setValueAtTime(5.8, now); 
+
+    // 4. Executa a fala
+    speakOfficialGoogleTTS(data.texto);
+
+    // 5. Quando a voz terminar, restaura o volume da música para o padrão (1.5)
+    audioTTS.onended = () => {
+        const endNow = audioCtx.currentTime;
+        currentMusicGain.gain.cancelScheduledValues(endNow);
+        currentMusicGain.gain.linearRampToValueAtTime(1.5, endNow + 0.8);
+    };
+
+    database.ref('status_radio/instancias/' + studioId + '/comando_fila').set(null);
+}
+        }
+    });
+
+    database.ref('status_radio/instancias/' + studioId + '/comando_mensagem').on('value', (snapshot) => {
+        const msg = snapshot.val();
+        if (msg) {
+            const toast = document.createElement('div');
+            toast.style = "position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#f39c12; color:white; padding:15px 30px; border-radius:50px; font-weight:bold; z-index:9999; box-shadow:0 10px 20px rgba(0,0,0,0.4);";
+            toast.innerText = "📩 MENSAGEM: " + msg;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.remove(); }, 10000);
+            database.ref('status_radio/instancias/' + studioId + '/comando_mensagem').set(null);
         }
     });
     
@@ -429,15 +510,15 @@
     const highShelf = audioCtx.createBiquadFilter();
     highShelf.type = "highshelf"; highShelf.frequency.value = 4000; highShelf.gain.value = 1.5;
 
-    const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain(), gainMin = audioCtx.createGain();
-    const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds'), audioMin = document.getElementById('audioMin'), audioPreload = document.getElementById('audioPreload');
+    const gainA = audioCtx.createGain(), gainB = audioCtx.createGain(), gainAds = audioCtx.createGain(), gainMin = audioCtx.createGain(), gainTTS = audioCtx.createGain();
+    const audioA = document.getElementById('audioA'), audioB = document.getElementById('audioB'), audioAds = document.getElementById('audioAds'), audioMin = document.getElementById('audioMin'), audioPreload = document.getElementById('audioPreload'), audioTTS = document.getElementById('audioTTS');
     
-    gainA.gain.value = 1.5; gainB.gain.value = 1.5; gainAds.gain.value = 1.5; gainMin.gain.value = 1.5;
+    gainA.gain.value = 1.5; gainB.gain.value = 1.5; gainAds.gain.value = 1.5; gainMin.gain.value = 1.5; gainTTS.gain.value = 1.8;
     
-    [audioA, audioB, audioAds, audioMin].forEach(a => {
+    [audioA, audioB, audioAds, audioMin, audioTTS].forEach(a => {
         a.crossOrigin = "anonymous";
         const source = audioCtx.createMediaElementSource(a);
-        let g = (a === audioA) ? gainA : (a === audioB) ? gainB : (a === audioAds) ? gainAds : gainMin;
+        let g = (a === audioA) ? gainA : (a === audioB) ? gainB : (a === audioAds) ? gainAds : (a === audioMin) ? gainMin : gainTTS;
         source.connect(g).connect(analyser);
     });
 
@@ -747,11 +828,10 @@
       prevGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + rampTime);
       activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som"; });
       document.getElementById('current-title').textContent = item.name;
-      updateAlbumArt(item.url, item.name); 
+      updateAlbumArt(item.url, item.name);
 
-      // CORREÇÃO: Incremento do Ranking centralizado para o estúdio
       if (item.isP1) {
-          const nomeLimpo = item.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9&(),-:]/g, " ").replace(/-+/g, "-");
+          const nomeLimpo = item.name.normalize("NFD").replace(/\//g, ",").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9&(),-:]/g, " ").replace(/-+/g, "-");
           database.ref(`status_radio/instancias/${studioId}/ranking_estudio/${nomeLimpo}`).transaction((current) => (current || 0) + 1);
       }
 
@@ -861,8 +941,15 @@
         } else { 
             playlist.push(newMusic); 
         }
+        
+        const toast = document.createElement('div');
+        toast.style = "position:fixed; bottom:20px; right:20px; background:#2ecc71; color:white; padding:12px 25px; border-radius:8px; font-weight:bold; z-index:9999; animation:slideIn 0.3s ease-out; box-shadow:0 5px 15px rgba(0,0,0,0.3);";
+        toast.innerHTML = "✅ " + name + " adicionada!";
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.remove(); }, 3000);
+
         document.getElementById('search-results').style.display = 'none';
-        document.getElementById('musicSearch').value = ''; 
+        if(document.getElementById('musicSearch')) document.getElementById('musicSearch').value = ''; 
         render();
     }
 
@@ -931,8 +1018,6 @@
       }
     }
     draw();
-  </script>
+</script>
 </body>
 </html>
-
-
