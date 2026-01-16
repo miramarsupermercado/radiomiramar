@@ -669,7 +669,7 @@
                 const targetMarker = '",';
                 const markerPos = line.indexOf(targetMarker);
                 if (markerPos !== -1) { currentName = line.substring(markerPos + targetMarker.length).trim(); } 
-                else { const lastComma = line.lastIndexOf(','); if (lastComma !== -1) currentName = line.substring(lastComma + 1).trim(); }
+                else { const lastComma = line.lastIndexOf('",''); if (lastComma !== -1) currentName = line.substring(lastComma + 1).trim(); }
             } else if (line !== "" && !line.startsWith('#')) {
                 let url = line.replace(/\\/g, '/');
                 if (!url.startsWith('http') && !url.startsWith('./')) url = './' + url;
@@ -1021,3 +1021,4 @@
 </script>
 </body>
 </html>
+
