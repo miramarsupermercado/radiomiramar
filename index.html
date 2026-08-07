@@ -25,7 +25,6 @@
   
   <style>
     :root { 
-      --primary: #f39c12; 
       --primary-glow: rgba(243, 156, 18, 0.3);
       --bg-dark: #0f1115; 
       --sidebar-bg: #1a1d23; 
@@ -56,18 +55,52 @@
       margin: 0; 
       background: var(--bg-dark); 
       color: var(--text-main); 
-      width: 133.33vw; 
-      height: 133.33vh; 
-      transform: scale(0.75); 
-      transform-origin: 0 0; 
-      overflow: hidden; 
+      width: 100vw; 
+      height: 100vh; 
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .logo-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: absolute;
+      top: 20px;
+      left: 0;
+      z-index: 100;
+    }
+
+    .logo-container img {
+      width: 115px;
+      height: 115px;
+      object-fit: contain;
+    }
+
+    .content {
+      max-width: 320px;
+      width: 100%;
+      padding: 0px;
+      text-align: center;
+      position: absolute;
+      top: 145px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+    }
+
+    .content marquee p {
+      margin: 0;
+      padding: 0;
+      font-size: 20px;
     }
 
     nav { 
+      display: none; 
       background: var(--sidebar-bg); 
-      display: flex; 
       padding: 0 25px; 
       height: 60px;
       align-items: center;
@@ -80,30 +113,85 @@
     .nav-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; height: 100%; border-bottom: 3px solid transparent; }
     .nav-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
-    .main-layout { flex: 1; display: flex; overflow: hidden; width: 100%; }
-    #page-player { display: flex; flex: 1; width: 100%; }
+    .main-layout { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+    #page-player { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 
-    .player-zone { flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at center, #1e3a8a 0%, #0f172a 100%); overflow: hidden; }
-    #visualizer { position: absolute; left: 0; width: 100%; height: 60%; pointer-events: none; }
-    .player-content { z-index: 10; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 20px; }
+    .player-zone { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; width: 100%; height: 100%; }
+    #visualizer { display: none; position: absolute; left: 0; width: 100%; height: 60%; pointer-events: none; }
+    .player-content { z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 20px; }
 
-    .album-art { width: 280px; height: 280px; background: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 8px solid #222; box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 0 20px var(--primary-glow); animation: pulse 4s infinite ease-in-out; margin-bottom: 30px; position: relative; overflow: hidden; }
+    .album-art { display: none; width: 280px; height: 280px; background: #000; border-radius: 50%; align-items: center; justify-content: center; border: 8px solid #222; box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 0 20px var(--primary-glow); animation: pulse 4s infinite ease-in-out; margin-bottom: 30px; position: relative; overflow: hidden; }
     #album-img { width: 100%; height: 100%; object-fit: cover; display: none; }
 
     @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); border-color: var(--primary); } }
 
-    #status { color: var(--accent); font-size: 1.75rem; text-transform: uppercase; margin-bottom: 15px; font-weight: 700; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
+    #status { display: none; color: var(--accent); font-size: 1.75rem; text-transform: uppercase; margin-bottom: 15px; font-weight: 700; letter-spacing: 2px; align-items: center; gap: 8px; }
     #status::before { content: ""; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--accent); }
 
-    #current-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 30px; text-align: center; max-width: 600px; text-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+    #current-title { display: none; font-size: 1.8rem; font-weight: 700; margin-bottom: 30px; text-align: center; max-width: 600px; text-shadow: 0 4px 12px rgba(0,0,0,0.5); }
 
-    .controls-row { display: flex; align-items: center; gap: 25px; margin-bottom: 40px; }
-    .round-btn { width: 70px; height: 70px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: var(--text-main); color: #000; }
-    .round-btn:hover { transform: translateY(-3px); background: var(--primary); color: #fff; }
-    .btn-secondary { width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: #fff; }
+    .controls-row { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 0; }
+
+    /* CÍRCULO ATRÁS DO BOTÃO ROUND-BTN */
+    .pulse-back-circle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 170px;
+      height: 170px;
+      margin-left: -85px;
+      margin-top: -85px;
+      background-color: #000000;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 35px rgba(0, 0, 0, 0.95);
+      z-index: 998;
+      pointer-events: none;
+      transform: scale(1);
+    }
+
+    /* CLASSE ATIVADA QUANDO REPRODUZINDO */
+    .pulse-back-circle.pulsing {
+      animation: pulseFast 0.20s infinite alternate ease-in-out;
+    }
+
+    @keyframes pulseFast {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0px rgba(0, 0, 0, 0.99);
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0px 10px rgba(0, 0, 0, 0.99);
+      }
+    }
+    
+    .round-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 150px;
+      height: 150px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-left: -75px;
+      margin-top: -75px;
+      border: 8px solid #fff;
+      border-radius: 50%;
+      font-size: 60px;
+      cursor: pointer !important;
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.9);
+      z-index: 999;
+      outline: 0; 
+      background-color: #000000;
+    }
+
+    .round-btn:hover { background: var(--primary); color: #fff; }
+    .btn-secondary { display: none; width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: #fff; }
 
     .volume-container {
-      display: flex;
+      display: none;
       align-items: center;
       background: rgba(255,255,255,0.1);
       border-radius: 35px;
@@ -144,11 +232,11 @@
     }
     .btn-mute.active { color: var(--danger); }
 
-    .progress-container { width: 90%; max-width: 600px; }
+    .progress-container { display: none; width: 90%; max-width: 600px; }
     .bar-bg { background: rgba(255,255,255,0.1); height: 14px; border-radius: 10px; overflow: hidden; position: relative; cursor: pointer; }
     #progress-fill { background: linear-gradient(90deg, #d35400, var(--primary)); height: 100%; width: 0%; border-radius: 10px; pointer-events: none; }
 
-    .sidebar { width: 420px; background: var(--sidebar-bg); border-left: 1px solid rgba(255,255,255,0.05); padding: 25px; display: flex; flex-direction: column; }
+    .sidebar { display: none; width: 420px; background: var(--sidebar-bg); border-left: 1px solid rgba(255,255,255,0.05); padding: 25px; flex-direction: column; }
     .sidebar h4 { color: var(--text-dim); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 2px; margin-bottom: 15px; margin-top: 20px; }
 
     .search-box { position: relative; margin-bottom: 10px; }
@@ -187,7 +275,7 @@
     }
     .remove-btn:hover { color: var(--danger); }
 
-    .btn-pao { background: #d6741d; color: #fff; border: none; padding: 20px; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 15px; width: 100%; }
+    .btn-pao { display: none; background: #d6741d; color: #fff; border: none; padding: 20px; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 15px; width: 100%; }
 
     #page-buffer { flex: 1; padding: 60px; overflow-y: auto; display: none; background: var(--bg-dark); }
     .buffer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; max-width: 1200px; margin: auto; }
@@ -218,9 +306,20 @@
     .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
     input:checked + .slider { background-color: var(--primary); }
     input:checked + .slider:before { transform: translateX(26px); }
+    
   </style>
 </head>
-<body>
+<body class="clearfix" style="background: url('https://voxhdstore.com.br/uploads/background_20260311_143326.jpg') center center no-repeat; background-size:cover">
+
+  <div class="logo-container">
+    <img src="https://voxhdstore.com.br/uploads/logo_20260311_143326.png?v=1786064006" alt="Logo">
+  </div>
+
+  <section class="content clearfix">
+    <marquee width="100%" direction="left">
+      <p id="marquee-text">Sintonizando...</p>
+    </marquee>
+  </section>
 
   <div id="banner-remoto"></div>
 
@@ -258,15 +357,21 @@
               <input type="range" id="volRange" class="volume-slider" min="0" max="100" value="100">
             </div>
 
+            <!-- CÍRCULO ATRÁS DO BOTÃO ROUND-BTN -->
+            <div id="pulse-circle" class="pulse-back-circle"></div>
+
             <button id="playPause" class="round-btn">
-              <svg id="icon-play" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-              <svg id="icon-stop" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M6 6h12v12H6z"/></svg>
+                <svg id="icon-play" width="98" height="98" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5.82v12.36a1 1 0 0 0 1.53.85l9.71-6.18a1 1 0 0 0 0-1.7l-9.71-6.18A1 1 0 0 0 8 5.82z" style="color: white;" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg id="icon-stop" width="98" height="98" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+                    <rect x="6" y="6" width="12" height="12" rx="2.5" style="color: white;"/>
+                </svg>
             </button>
-            <button id="nextBtn" class="round-btn btn-secondary"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
           </div>
           <div class="progress-container">
             <div class="bar-bg" id="prog-container"><div id="progress-fill"></div></div>
-            <div style="display:flex; justify-content:space-between; margin-top:12px; color:var(--text-dim); font-size: 0.85rem;">
+            <div style="display:flex; justify-style:space-between; margin-top:12px; color:var(--text-dim); font-size: 0.85rem;">
               <span id="time-current">00:00</span>
               <span id="time-total">00:00</span>
             </div>
@@ -449,30 +554,25 @@
                 insertMusicByPosition(data.url, data.name, data.posicao);
                 database.ref('status_radio/instancias/' + studioId + '/comando_fila').set(null);
             } else if (data.acao === "FALAR_TEXTO") {
-    // 1. Identifica qual player de música está ativo para baixar o volume dele
-    const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
-    const now = audioCtx.currentTime;
+                const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
+                const now = audioCtx.currentTime;
 
-    // 2. Ducking: Abaixa o volume da música suavemente para 10% (0.1)
-    currentMusicGain.gain.cancelScheduledValues(now);
-    currentMusicGain.gain.linearRampToValueAtTime(0.1, now + 0.5);
+                currentMusicGain.gain.cancelScheduledValues(now);
+                currentMusicGain.gain.linearRampToValueAtTime(0.1, now + 0.5);
 
-    // 3. Define o volume da VOZ (gainTTS) - ajuste o 1.8 se quiser mais alto ou baixo
-    gainTTS.gain.cancelScheduledValues(now);
-    gainTTS.gain.setValueAtTime(5.8, now); 
+                gainTTS.gain.cancelScheduledValues(now);
+                gainTTS.gain.setValueAtTime(5.8, now); 
 
-    // 4. Executa a fala
-    speakOfficialGoogleTTS(data.texto);
+                speakOfficialGoogleTTS(data.texto);
 
-    // 5. Quando a voz terminar, restaura o volume da música para o padrão (1.5)
-    audioTTS.onended = () => {
-        const endNow = audioCtx.currentTime;
-        currentMusicGain.gain.cancelScheduledValues(endNow);
-        currentMusicGain.gain.linearRampToValueAtTime(1.5, endNow + 0.8);
-    };
+                audioTTS.onended = () => {
+                    const endNow = audioCtx.currentTime;
+                    currentMusicGain.gain.cancelScheduledValues(endNow);
+                    currentMusicGain.gain.linearRampToValueAtTime(1.5, endNow + 0.8);
+                };
 
-    database.ref('status_radio/instancias/' + studioId + '/comando_fila').set(null);
-}
+                database.ref('status_radio/instancias/' + studioId + '/comando_fila').set(null);
+            }
         }
     });
 
@@ -487,7 +587,6 @@
             database.ref('status_radio/instancias/' + studioId + '/comando_mensagem').set(null);
         }
     });
-    
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
@@ -570,6 +669,14 @@
     function updatePlayPauseUI(isPlaying) {
         document.getElementById('icon-play').style.display = isPlaying ? 'none' : 'block';
         document.getElementById('icon-stop').style.display = isPlaying ? 'block' : 'none';
+
+        const circle = document.getElementById('pulse-circle');
+        if (isPlaying) {
+            circle.classList.add('pulsing');
+        } else {
+            circle.classList.remove('pulsing');
+        }
+
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
         updateFirebaseStatus(isPlaying);
     }
@@ -585,7 +692,8 @@
     function updateInterfaceSettings() {
         settings.showNextBtn = document.getElementById('toggle-next-btn').checked;
         settings.allowSeek = document.getElementById('toggle-progress-seek').checked;
-        document.getElementById('nextBtn').style.display = settings.showNextBtn ? 'flex' : 'none';
+        const nextBtn = document.getElementById('nextBtn');
+        if (nextBtn) nextBtn.style.display = settings.showNextBtn ? 'flex' : 'none';
         document.getElementById('prog-container').style.cursor = settings.allowSeek ? 'pointer' : 'default';
         localStorage.setItem('miramar_ui_settings', JSON.stringify(settings));
     }
@@ -826,8 +934,12 @@
       activeGain.gain.setValueAtTime(0, audioCtx.currentTime);
       activeGain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + rampTime);
       prevGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + rampTime);
-      activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som"; });
+      activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { 
+        document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som";
+        document.getElementById('marquee-text').textContent = "⚠️ Clique para ativar o som";
+      });
       document.getElementById('current-title').textContent = item.name;
+      document.getElementById('marquee-text').textContent = item.name;
       updateAlbumArt(item.url, item.name);
 
       if (item.isP1) {
@@ -868,7 +980,9 @@
         const fM = filesP4.find(f => f.name.includes(mS));
         if (!fH) return play(idx + 1);
         currentIndex = idx;
-        document.getElementById('current-title').textContent = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes()}`;
+        const horaText = `🎤 Hora Certa: ${now.getHours()}:${now.getMinutes()}`;
+        document.getElementById('current-title').textContent = horaText;
+        document.getElementById('marquee-text').textContent = horaText;
         updateFirebaseStatus(!activePlayer.paused);
         if(playlist[idx+1] && playlist[idx+1].isP3) { audioPreload.src = playlist[idx+1].url; audioPreload.load(); }
         if (fM) { audioMin.src = fM.url; audioMin.load(); }
@@ -984,7 +1098,6 @@
         for (let i = currentIndex + 1; i < playlist.length; i++) { if (playlist[i].isP1) { nextMusicIdx = i; break; } }
         if (nextMusicIdx !== -1) play(nextMusicIdx, true);
     }
-    document.getElementById('nextBtn').onclick = skipToNext;
 
     function updateAlbumArt(audioUrl, musicName) {
       const img = document.getElementById('album-img'), fb = document.getElementById('fallback-icon');
@@ -1003,6 +1116,7 @@
     }
 
     const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
+
     function draw() {
       requestAnimationFrame(draw);
       canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
@@ -1021,5 +1135,3 @@
 </script>
 </body>
 </html>
-
-
