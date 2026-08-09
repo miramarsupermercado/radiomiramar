@@ -474,24 +474,48 @@
         return `${h}h ${m}m ${s}s`;
     }
 
-    function updateFirebaseStatus(isPlaying) {
-        const currentTitle = document.getElementById('current-title').textContent;
-        const uptime = formatUptime(Date.now() - startTime);
-        const remaining = activePlayer && activePlayer.duration ? formatTime(activePlayer.duration - activePlayer.currentTime) : "00:00";
-        
-        database.ref('status_radio/instancias/' + studioId).update({
-            musica_atual: currentTitle || "Parado",
-            tempo_restante: remaining,
-            tocando: isPlaying,
-            mutado: isMuted,
-            tempo_online: uptime,
-            ip_studio: userData.ip, 
-            localizacao: userData.local,
-            volume_atual: document.getElementById('volRange').value,
-            ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
-        });
+function updateFirebaseStatus(isPlaying) {
+
+    const currentTitle = document.getElementById('current-title').textContent;
+    const uptime = formatUptime(Date.now() - startTime);
+    const remaining = activePlayer && activePlayer.duration
+        ? formatTime(activePlayer.duration - activePlayer.currentTime)
+        : "00:00";
+
+    // Pega as 3 próximas MÚSICAS reais
+    const proximasMusicas = [];
+
+    for (let i = currentIndex + 1; i < playlist.length; i++) {
+
+        const item = playlist[i];
+
+        if (item && item.isP1 && item.name) {
+
+            proximasMusicas.push(item.name);
+
+            if (proximasMusicas.length === 3) {
+                break;
+            }
+        }
     }
 
+    database.ref('status_radio/instancias/' + studioId).update({
+
+        musica_atual: currentTitle || "Parado",
+        tempo_restante: remaining,
+        tocando: isPlaying,
+        mutado: isMuted,
+        tempo_online: uptime,
+        ip_studio: userData.ip,
+        localizacao: userData.local,
+        volume_atual: document.getElementById('volRange').value,
+
+        // NOVO
+        proximas_musicas: proximasMusicas,
+
+        ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
+    });
+}
     database.ref('status_radio/instancias/' + studioId + '/comando_acao').on('value', (snapshot) => {
         const cmd = snapshot.val();
         if (!cmd) return;
@@ -853,6 +877,47 @@
       document.getElementById('status-pastas').innerHTML = `Músicas: ${totalMusic} | Vinhetas: ${filesP3.length}`;
       document.getElementById('build').style.display = 'block';
     }
+
+    function carregarProgramacaoDoEstudio() {
+
+    return database
+        .ref('status_radio/instancias/' + studioId + '/programacao_generos')
+        .once('value')
+        .then(snapshot => {
+
+            const dados = snapshot.val();
+
+            if (dados && typeof dados === 'object') {
+
+                programacaoFirebase = dados;
+
+                // Substitui o genreMix local pela programação
+                // definida no REMOTO para este estúdio
+                Object.keys(musicLibrary).forEach(genero => {
+
+                    if (programacaoFirebase[genero] !== undefined) {
+                        genreMix[genero] =
+                            Number(programacaoFirebase[genero]) || 0;
+                    } else {
+                        genreMix[genero] = 0;
+                    }
+
+                });
+
+            }
+
+            programacaoCarregada = true;
+        })
+        .catch(error => {
+
+            console.error(
+                "Erro ao carregar programação do estúdio:",
+                error
+            );
+
+            programacaoCarregada = false;
+        });
+}
 
     function generatePlaylist() {
       let currentPlayingItem = (currentIndex >= 0 && playlist[currentIndex]) ? playlist[currentIndex] : null;
