@@ -262,6 +262,43 @@
             color: #ff9f43;
             margin-left: auto;
         }
+        .proximas-container {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .proximas-titulo {
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .proximas-lista {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.75rem;
+        }
+        .proxima-item {
+            padding: 4px 0;
+            color: #ccc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-bottom: 1px dashed rgba(255,255,255,0.05);
+            display: flex;
+            gap: 6px;
+        }
+        .proxima-item:last-child {
+            border-bottom: none;
+        }
+        .proxima-num {
+            color: var(--primary);
+            font-weight: bold;
+        }
         #toast-container {
             position: fixed;
             bottom: 20px;
@@ -318,6 +355,7 @@
                 <button class="btn-red" onclick="enviarComando('TOCAR_AVISO')">📢 Aviso Pão</button>
                 <button id="btnRecord" class="btn-record" onclick="toggleGravarLocucao()">🎤 Locução em HD</button>
                 <button class="btn-purple" onclick="document.getElementById('fileUpload').click()">📁 Enviar Áudios HQ</button>
+                <button class="btn-red" onclick="removerEstudiosSelecionados()">🗑️ Remover Estúdios</button>
                 <input type="file" id="fileUpload" style="display: none;" accept="audio/*" multiple onchange="processarArquivosAudio(this)">
             </div>
             
@@ -376,15 +414,23 @@
         }
 
         async function carregarBiblioteca() {
-            try {
-                const response = await fetch('MUSICAS.m3u?t=' + Date.now());
-                const text = await response.text();
-                parseM3U(text);
-            } catch (e) { console.error("Erro biblioteca:", e); }
+            bibliotecaMusicas = []; // Limpa para evitar duplicados ao recarregar
+            const arquivos = ['MUSICAS.m3u', 'MUSICAS72H.m3u'];
+            
+            for (const file of arquivos) {
+                try {
+                    const response = await fetch(`${file}?t=${Date.now()}`);
+                    if (response.ok) {
+                        const text = await response.text();
+                        parseM3U(text);
+                    }
+                } catch (e) {
+                    console.error(`Erro biblioteca (${file}):`, e);
+                }
+            }
         }
 
         function parseM3U(text) {
-            bibliotecaMusicas = []; // Limpa para evitar duplicados
             const lines = text.split(/\r?\n/);
             let currentName = "";
             for (let line of lines) {
@@ -554,6 +600,21 @@
                     </div>
                 `;
 
+                // Pega as 3 próximas músicas enviadas na estrutura do estúdio
+                let listaProximas = inst.proximas_musicas || inst.fila || [];
+                if (typeof listaProximas === 'object' && !Array.isArray(listaProximas)) {
+                    listaProximas = Object.values(listaProximas);
+                }
+                const proximasTres = Array.isArray(listaProximas) ? listaProximas.slice(0, 3) : [];
+
+                let htmlProximas = '<li class="proxima-item" style="color: #777;">Nenhuma música na fila</li>';
+                if (proximasTres.length > 0) {
+                    htmlProximas = proximasTres.map((item, idx) => {
+                        const nomeMusica = typeof item === 'string' ? item : (item.name || item.nome || item.title || 'Música ' + (idx + 1));
+                        return `<li class="proxima-item"><span class="proxima-num">${idx + 1}.</span> <span title="${nomeMusica}">${nomeMusica}</span></li>`;
+                    }).join('');
+                }
+
                 const card = document.createElement('div');
                 card.className = `card ${isSelected ? 'selected' : ''} ${estaMutado ? 'muted-card' : ''}`;
                 card.onclick = () => toggleSelect(key);
@@ -566,6 +627,12 @@
                     <div class="info-row">
                         <span class="status-badge ${inst.tocando ? 'playing' : 'paused'}">${inst.tocando ? '● NO AR' : '○ PAUSADO'}</span>
                         <span class="tempo-restante">⏳ Restam: ${inst.tempo_restante || '00:00'}</span>
+                    </div>
+                    <div class="proximas-container">
+                        <div class="proximas-titulo">🎵 PRÓXIMAS MÚSICAS</div>
+                        <ul class="proximas-lista">
+                            ${htmlProximas}
+                        </ul>
                     </div>
                     ${volumeContent}
                 `;
@@ -655,6 +722,17 @@
                 selecionados.clear(); 
             }
         }
+
+        async function removerEstudiosSelecionados() {
+            if (selecionados.size === 0) return alert("Selecione pelo menos um estúdio para remover.");
+            if (confirm(`Deseja remover os ${selecionados.size} estúdios selecionados?`)) {
+                const promises = Array.from(selecionados).map(id => db.ref(`status_radio/instancias/${id}`).remove());
+                await Promise.all(promises);
+                selecionados.clear();
+                showToast("Estúdios removidos com sucesso!");
+            }
+        }
+
         carregarBiblioteca();
     </script>
 </body>
