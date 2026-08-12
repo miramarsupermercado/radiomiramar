@@ -1,8 +1,6 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HGB5Q74YN"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -118,13 +116,7 @@
     #page-player { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 
     .player-zone { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; width: 100%; height: 100%; }
-    #visualizer { display: none; position: absolute; left: 0; width: 100%; height: 60%; pointer-events: none; }
     .player-content { z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 20px; }
-
-    .album-art { display: none; width: 280px; height: 280px; background: #000; border-radius: 50%; align-items: center; justify-content: center; border: 8px solid #222; box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 0 20px var(--primary-glow); animation: pulse 4s infinite ease-in-out; margin-bottom: 30px; position: relative; overflow: hidden; }
-    #album-img { width: 100%; height: 100%; object-fit: cover; display: none; }
-
-    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); border-color: var(--primary); } }
 
     #status { display: none; color: var(--accent); font-size: 1.75rem; text-transform: uppercase; margin-bottom: 15px; font-weight: 700; letter-spacing: 2px; align-items: center; gap: 8px; }
     #status::before { content: ""; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--accent); }
@@ -133,7 +125,6 @@
 
     .controls-row { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 0; gap: 15px; }
 
-    /* CÍRCULO ATRÁS DO BOTÃO ROUND-BTN */
     .pulse-back-circle {
       position: absolute;
       top: 50%;
@@ -151,7 +142,6 @@
       transform: scale(1);
     }
 
-    /* CLASSE ATIVADA QUANDO REPRODUZINDO */
     .pulse-back-circle.pulsing {
       animation: pulseFast 0.20s infinite alternate ease-in-out;
     }
@@ -340,15 +330,8 @@
   <div class="main-layout">
     <div id="page-player">
       <div class="player-zone">
-        <canvas id="visualizer"></canvas>
         <div class="player-content">
           <div id="status">No Ar</div>
-          <div class="album-art" id="album-container">
-            <div id="fallback-icon">
-                <svg width="80" height="80" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-            </div>
-            <img id="album-img" alt="Capa">
-          </div>
           <div id="current-title">Sintonizando...</div>
           <div class="controls-row">
             <div class="volume-container">
@@ -358,7 +341,6 @@
               <input type="range" id="volRange" class="volume-slider" min="0" max="100" value="100">
             </div>
 
-            <!-- CÍRCULO ATRÁS DO BOTÃO ROUND-BTN -->
             <div id="pulse-circle" class="pulse-back-circle"></div>
 
             <button id="playPause" class="round-btn" title="Play/Pause">
@@ -450,7 +432,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    const GOOGLE_CLOUD_TTS_KEY = 'AIzaSyD4B7DIpj9Okigx91oiydpxR0ueEqCYbds';
+    const GOOGLE_CLOUD_TTS_KEY = 'AIzaSyD4B7DIpj9Okigx91oiydpxR0ueCYbds';
 
     let studioId = localStorage.getItem('miramar_studio_id');
     if (!studioId) {
@@ -552,7 +534,7 @@
             if (result.audioContent) {
                 const audioTTS = document.getElementById('audioTTS');
                 audioTTS.src = "data:audio/mp3;base64," + result.audioContent;
-                audioTTS.play();
+                safePlayAudio(audioTTS);
             } else {
                 console.error("Erro na API Google TTS:", result);
             }
@@ -603,8 +585,6 @@
     });
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256; 
     const mainGain = audioCtx.createGain(); 
     
     const compressor = audioCtx.createDynamicsCompressor();
@@ -632,10 +612,17 @@
         a.crossOrigin = "anonymous";
         const source = audioCtx.createMediaElementSource(a);
         let g = (a === audioA) ? gainA : (a === audioB) ? gainB : (a === audioAds) ? gainAds : (a === audioMin) ? gainMin : gainTTS;
-        source.connect(g).connect(analyser);
+        source.connect(g).connect(lowShelf);
+
+        a.onerror = () => {
+          if (a === activePlayer) {
+            console.warn("Erro ao reproduzir arquivo. Pulando para a próxima faixa...");
+            play(currentIndex + 1, true);
+          }
+        };
     });
 
-    analyser.connect(lowShelf).connect(midPeak).connect(highShelf).connect(compressor).connect(mainGain).connect(audioCtx.destination);
+    lowShelf.connect(midPeak).connect(highShelf).connect(compressor).connect(mainGain).connect(audioCtx.destination);
 
     let playlist = [], currentIndex = -1, activePlayer = audioA;
     let musicLibrary = {}, filesP3 = [], filesP4 = [], filesAds = [];
@@ -643,7 +630,31 @@
     let isMuted = false;
     let settings = { showNextBtn: true, allowSeek: true };
 
-    async function unlockAudio() { if (audioCtx.state === 'suspended') await audioCtx.resume(); }
+    async function unlockAudio() { 
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+    }
+
+    async function safePlayAudio(player) {
+      await unlockAudio();
+      try {
+        await player.play();
+        if (player === activePlayer) updatePlayPauseUI(true);
+      } catch (e) {
+        console.warn("Falha no play automático, tentando recuperar...", e);
+        setTimeout(async () => {
+          try {
+            await player.play();
+            if (player === activePlayer) updatePlayPauseUI(true);
+          } catch (err) {
+            document.getElementById('current-title').textContent = "⚠️ Clique no Play para continuar";
+            document.getElementById('marquee-text').textContent = "⚠️ Clique no Play para continuar";
+            updatePlayPauseUI(false);
+          }
+        }, 150);
+      }
+    }
 
     function applyVolume(value) {
         mainGain.gain.setTargetAtTime(value, audioCtx.currentTime, 0.1);
@@ -672,8 +683,7 @@
 
     document.getElementById('playPause').onclick = function() {
         if (activePlayer.paused) {
-            activePlayer.play();
-            updatePlayPauseUI(true);
+            safePlayAudio(activePlayer);
         } else {
             activePlayer.pause();
             updatePlayPauseUI(false);
@@ -737,7 +747,7 @@
 
     function setupMediaSession() {
         if (!('mediaSession' in navigator)) return;
-        navigator.mediaSession.setActionHandler('play', () => { activePlayer.play(); updatePlayPauseUI(true); });
+        navigator.mediaSession.setActionHandler('play', () => { safePlayAudio(activePlayer); });
         navigator.mediaSession.setActionHandler('pause', () => { activePlayer.pause(); updatePlayPauseUI(false); });
         navigator.mediaSession.setActionHandler('nexttrack', () => skipToNext());
     }
@@ -931,16 +941,29 @@
     }
 
     async function play(i, manual = false) {
-      if (i < 0 || i >= playlist.length) return;
+      if (i < 0 || i >= playlist.length) {
+        if (playlist.length > 0) {
+          generatePlaylist();
+          i = 0;
+        } else {
+          return;
+        }
+      }
       await unlockAudio();
       const item = playlist[i];
       if (item.isHoraDinamica) { runHora(i); return; }
       const prevPlayer = activePlayer;
       const prevGain = (prevPlayer === audioA) ? gainA : gainB;
       prevPlayer.ontimeupdate = null;
+      prevPlayer.onended = null;
+
       activePlayer = (prevPlayer === audioA) ? audioB : audioA;
       const activeGain = (activePlayer === audioA) ? gainA : gainB;
-      if (activePlayer.src !== item.url) { activePlayer.src = item.url; activePlayer.load(); }
+
+      if (activePlayer.src !== item.url) { 
+        activePlayer.src = item.url; 
+        activePlayer.load(); 
+      }
       currentIndex = i;
       activeGain.gain.cancelScheduledValues(audioCtx.currentTime);
       const cameFromVinheta = (playlist[i-1] && (playlist[i-1].isP3 || playlist[i-1].isHoraDinamica));
@@ -949,22 +972,20 @@
       activeGain.gain.setValueAtTime(0, audioCtx.currentTime);
       activeGain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + rampTime);
       prevGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + rampTime);
-      activePlayer.play().then(() => updatePlayPauseUI(true)).catch(() => { 
-        document.getElementById('current-title').textContent = "⚠️ Clique para ativar o som";
-        document.getElementById('marquee-text').textContent = "⚠️ Clique para ativar o som";
-      });
+
+      safePlayAudio(activePlayer);
+
       document.getElementById('current-title').textContent = item.name;
       document.getElementById('marquee-text').textContent = item.name;
-      updateAlbumArt(item.url, item.name);
 
-      if (item.isP1) {
+      if (item.isP1 && item.name) {
           const nomeLimpo = item.name.normalize("NFD").replace(/\//g, ",").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9&(),-:]/g, " ").replace(/-+/g, "-");
           database.ref(`status_radio/instancias/${studioId}/ranking_estudio/${nomeLimpo}`).transaction((current) => (current || 0) + 1);
       }
 
       if ('mediaSession' in navigator) {
           navigator.mediaSession.metadata = new MediaMetadata({
-              title: item.name, artist: 'Rádio Miramar', album: 'Estúdio Profissional', artwork: [{ src: `./300x300/${item.name.replace(/\//g, '_')}.png`, sizes: '300x300', type: 'image/png' }]
+              title: item.name, artist: 'Rádio Miramar', album: 'Estúdio Profissional'
           });
       }
       let nextMusicIdx = -1;
@@ -973,16 +994,28 @@
           const nextMusic = playlist[nextMusicIdx];
           if (audioPreload.src !== nextMusic.url) { audioPreload.src = nextMusic.url; audioPreload.load(); }
       }
+
       activePlayer.ontimeupdate = function() {
-        document.getElementById('progress-fill').style.width = (this.currentTime / this.duration * 100) + "%";
-        document.getElementById('time-current').textContent = formatTime(this.currentTime);
-        document.getElementById('time-total').textContent = formatTime(this.duration);
-        const overlapMargin = (item.isP3) ? 0.5 : 0.8;
-        if (!item.overlap && this.duration > 1) {
-            if (this.duration - this.currentTime <= overlapMargin) { item.overlap = true; play(i + 1); }
+        if (this.duration) {
+          document.getElementById('progress-fill').style.width = (this.currentTime / this.duration * 100) + "%";
+          document.getElementById('time-current').textContent = formatTime(this.currentTime);
+          document.getElementById('time-total').textContent = formatTime(this.duration);
+          
+          const overlapMargin = (item.isP3) ? 0.3 : 0.6;
+          if (!item.overlap && (this.duration - this.currentTime <= overlapMargin)) { 
+            item.overlap = true; 
+            play(i + 1); 
+          }
         }
       };
-      activePlayer.onended = () => { if (!item.overlap) play(i + 1); };
+
+      activePlayer.onended = () => { 
+        if (!item.overlap) {
+          item.overlap = true;
+          play(i + 1); 
+        }
+      };
+
       render();
       updateBufferMonitor();
     }
@@ -1002,10 +1035,14 @@
         if(playlist[idx+1] && playlist[idx+1].isP3) { audioPreload.src = playlist[idx+1].url; audioPreload.load(); }
         if (fM) { audioMin.src = fM.url; audioMin.load(); }
         audioAds.src = fH.url;
-        audioAds.play();
+        safePlayAudio(audioAds);
         audioAds.onended = () => { 
-            if (fM) { audioMin.play(); audioMin.onended = () => play(idx + 1, true); } 
-            else { play(idx + 1, true); } 
+            if (fM) { 
+              safePlayAudio(audioMin); 
+              audioMin.onended = () => play(idx + 1, true); 
+            } else { 
+              play(idx + 1, true); 
+            } 
         };
         updateBufferMonitor();
     }
@@ -1027,11 +1064,11 @@
         currentMusicGain.gain.exponentialRampToValueAtTime(0.08, now + fadeTime);
         const btn = document.getElementById('playAd');
         btn.innerText = "🔊 TOCANDO AGORA (2x)..."; btn.style.background = "#e74c3c";
-        let playsCount = 0; audioAds.src = randomAd.url; audioAds.play();
+        let playsCount = 0; audioAds.src = randomAd.url; safePlayAudio(audioAds);
         updateFirebaseStatus(true);
         audioAds.onended = () => {
             playsCount++;
-            if (playsCount < 2) { audioAds.currentTime = 0; audioAds.play(); } 
+            if (playsCount < 2) { audioAds.currentTime = 0; safePlayAudio(audioAds); } 
             else {
                 const endNow = audioCtx.currentTime;
                 currentMusicGain.gain.cancelScheduledValues(endNow);
@@ -1113,40 +1150,6 @@
         for (let i = currentIndex + 1; i < playlist.length; i++) { if (playlist[i].isP1) { nextMusicIdx = i; break; } }
         if (nextMusicIdx !== -1) play(nextMusicIdx, true);
     }
-
-    function updateAlbumArt(audioUrl, musicName) {
-      const img = document.getElementById('album-img'), fb = document.getElementById('fallback-icon');
-      const fileNameForArt = musicName.replace(/\//g, '_');
-      const pngPath = `./300x300/${fileNameForArt}.png`, jpgPath = `./300x300/${fileNameForArt}.jpg`;
-      const showFallback = () => { img.style.display = 'none'; fb.style.display = 'block'; };
-      const testPng = new Image();
-      testPng.src = pngPath;
-      testPng.onload = () => { img.src = pngPath; img.style.display = 'block'; fb.style.display = 'none'; };
-      testPng.onerror = () => {
-          const testJpg = new Image();
-          testJpg.src = jpgPath;
-          testJpg.onload = () => { img.src = jpgPath; img.style.display = 'block'; fb.style.display = 'none'; };
-          testJpg.onerror = showFallback;
-      };
-    }
-
-    const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
-
-    function draw() {
-      requestAnimationFrame(draw);
-      canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      analyser.getByteFrequencyData(data);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let g = ctx.createLinearGradient(0, canvas.height, 0, 0);
-      g.addColorStop(0, "rgba(243, 156, 18, 0)"); g.addColorStop(1, "rgba(243, 156, 18, 0.6)");
-      const barW = (canvas.width / data.length) * 2;
-      for(let i=0; i<data.length; i++) {
-        let h = data[i] * (canvas.height / 255); ctx.fillStyle = g;
-        ctx.fillRect(i*(barW+2), canvas.height - h, barW, h);
-      }
-    }
-    draw();
 </script>
 </body>
 </html>
