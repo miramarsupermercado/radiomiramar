@@ -19,12 +19,13 @@
 
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rádio Miramar - Estúdio Profissional</title>
+  <title>Supermercado Miramar</title>
   <link href="https://fonts.googleapis.com/css2?family=Dongle:wght@300;400;700&family=Quicksand:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   
   <style>
     :root { 
+      --primary: #f39c12;
       --primary-glow: rgba(243, 156, 18, 0.3);
       --bg-dark: #0f1115; 
       --sidebar-bg: #1a1d23; 
@@ -130,7 +131,7 @@
 
     #current-title { display: none; font-size: 1.8rem; font-weight: 700; margin-bottom: 30px; text-align: center; max-width: 600px; text-shadow: 0 4px 12px rgba(0,0,0,0.5); }
 
-    .controls-row { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 0; }
+    .controls-row { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 0; gap: 15px; }
 
     /* CÍRCULO ATRÁS DO BOTÃO ROUND-BTN */
     .pulse-back-circle {
@@ -188,7 +189,8 @@
     }
 
     .round-btn:hover { background: var(--primary); color: #fff; }
-    .btn-secondary { display: none; width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: #fff; }
+    .btn-secondary { display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: #fff; border: none; border-radius: 50%; cursor: pointer; z-index: 999; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.2); }
 
     .volume-container {
       display: none;
@@ -306,16 +308,15 @@
     .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
     input:checked + .slider { background-color: var(--primary); }
     input:checked + .slider:before { transform: translateX(26px); }
-    
   </style>
 </head>
-<body class="clearfix" style="background: url('https://voxhdstore.com.br/uploads/background_20260311_143326.jpg') center center no-repeat; background-size:cover">
+<body style="background: url('https://voxhdstore.com.br/uploads/background_20260311_143326.jpg') center center no-repeat; background-size:cover">
 
   <div class="logo-container">
     <img src="https://voxhdstore.com.br/uploads/logo_20260311_143326.png?v=1786064006" alt="Logo">
   </div>
 
-  <section class="content clearfix">
+  <section class="content">
     <marquee width="100%" direction="left">
       <p id="marquee-text">Sintonizando...</p>
     </marquee>
@@ -360,7 +361,7 @@
             <!-- CÍRCULO ATRÁS DO BOTÃO ROUND-BTN -->
             <div id="pulse-circle" class="pulse-back-circle"></div>
 
-            <button id="playPause" class="round-btn">
+            <button id="playPause" class="round-btn" title="Play/Pause">
                 <svg id="icon-play" width="98" height="98" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5.82v12.36a1 1 0 0 0 1.53.85l9.71-6.18a1 1 0 0 0 0-1.7l-9.71-6.18A1 1 0 0 0 8 5.82z" style="color: white;" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -368,10 +369,14 @@
                     <rect x="6" y="6" width="12" height="12" rx="2.5" style="color: white;"/>
                 </svg>
             </button>
+
+            <button id="nextBtn" class="btn-secondary" title="Próxima Música" onclick="skipToNext()">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
           </div>
           <div class="progress-container">
             <div class="bar-bg" id="prog-container"><div id="progress-fill"></div></div>
-            <div style="display:flex; justify-style:space-between; margin-top:12px; color:var(--text-dim); font-size: 0.85rem;">
+            <div style="display:flex; justify-content:space-between; margin-top:12px; color:var(--text-dim); font-size: 0.85rem;">
               <span id="time-current">00:00</span>
               <span id="time-total">00:00</span>
             </div>
@@ -422,7 +427,6 @@
             <button onclick="saveGenrePreset()" class="btn-save-preset" style="width: auto; padding: 5px 15px;">💾 SALVAR PRESET</button>
           </div>
           <div id="sliders-container"></div>
-          <div id="total-info" style="margin-top:15px; font-weight:bold; text-align:center;">Total: 100%</div>
         </div>
         <button id="build" class="save-btn" style="display:none;">REGENERAR PROGRAMAÇÃO</button>
       </div>
@@ -446,7 +450,6 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // SUBSTITUA PELA SUA CHAVE DE API DO GOOGLE CLOUD
     const GOOGLE_CLOUD_TTS_KEY = 'AIzaSyD4B7DIpj9Okigx91oiydpxR0ueEqCYbds';
 
     let studioId = localStorage.getItem('miramar_studio_id');
@@ -474,48 +477,36 @@
         return `${h}h ${m}m ${s}s`;
     }
 
-function updateFirebaseStatus(isPlaying) {
+    function updateFirebaseStatus(isPlaying) {
+        const currentTitle = document.getElementById('current-title').textContent;
+        const uptime = formatUptime(Date.now() - startTime);
+        const remaining = activePlayer && activePlayer.duration
+            ? formatTime(activePlayer.duration - activePlayer.currentTime)
+            : "00:00";
 
-    const currentTitle = document.getElementById('current-title').textContent;
-    const uptime = formatUptime(Date.now() - startTime);
-    const remaining = activePlayer && activePlayer.duration
-        ? formatTime(activePlayer.duration - activePlayer.currentTime)
-        : "00:00";
-
-    // Pega as 3 próximas MÚSICAS reais
-    const proximasMusicas = [];
-
-    for (let i = currentIndex + 1; i < playlist.length; i++) {
-
-        const item = playlist[i];
-
-        if (item && item.isP1 && item.name) {
-
-            proximasMusicas.push(item.name);
-
-            if (proximasMusicas.length === 3) {
-                break;
+        const proximasMusicas = [];
+        for (let i = currentIndex + 1; i < playlist.length; i++) {
+            const item = playlist[i];
+            if (item && item.isP1 && item.name) {
+                proximasMusicas.push(item.name);
+                if (proximasMusicas.length === 3) break;
             }
         }
+
+        database.ref('status_radio/instancias/' + studioId).update({
+            musica_atual: currentTitle || "Parado",
+            tempo_restante: remaining,
+            tocando: isPlaying,
+            mutado: isMuted,
+            tempo_online: uptime,
+            ip_studio: userData.ip,
+            localizacao: userData.local,
+            volume_atual: document.getElementById('volRange').value,
+            proximas_musicas: proximasMusicas,
+            ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
+        });
     }
 
-    database.ref('status_radio/instancias/' + studioId).update({
-
-        musica_atual: currentTitle || "Parado",
-        tempo_restante: remaining,
-        tocando: isPlaying,
-        mutado: isMuted,
-        tempo_online: uptime,
-        ip_studio: userData.ip,
-        localizacao: userData.local,
-        volume_atual: document.getElementById('volRange').value,
-
-        // NOVO
-        proximas_musicas: proximasMusicas,
-
-        ultima_atualizacao: firebase.database.ServerValue.TIMESTAMP
-    });
-}
     database.ref('status_radio/instancias/' + studioId + '/comando_acao').on('value', (snapshot) => {
         const cmd = snapshot.val();
         if (!cmd) return;
@@ -525,7 +516,6 @@ function updateFirebaseStatus(isPlaying) {
         database.ref('status_radio/instancias/' + studioId + '/comando_acao').set("");
     });
 
-    // IMPLEMENTAÇÃO DO COMANDO DE ATUALIZAÇÃO DO NAVEGADOR
     database.ref('status_radio/instancias/' + studioId + '/comando_atualizar').on('value', (snapshot) => {
         const reset = snapshot.val();
         if (reset === true) {
@@ -549,7 +539,7 @@ function updateFirebaseStatus(isPlaying) {
         const data = {
             input: { text: text },
             voice: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-B' }, 
-            audioConfig: { audioEncoding: 'MP3', pitch: 0.5, speakingRate: 1.1, }
+            audioConfig: { audioEncoding: 'MP3', pitch: 0.5, speakingRate: 1.1 }
         };
 
         try {
@@ -877,47 +867,6 @@ function updateFirebaseStatus(isPlaying) {
       document.getElementById('status-pastas').innerHTML = `Músicas: ${totalMusic} | Vinhetas: ${filesP3.length}`;
       document.getElementById('build').style.display = 'block';
     }
-
-    function carregarProgramacaoDoEstudio() {
-
-    return database
-        .ref('status_radio/instancias/' + studioId + '/programacao_generos')
-        .once('value')
-        .then(snapshot => {
-
-            const dados = snapshot.val();
-
-            if (dados && typeof dados === 'object') {
-
-                programacaoFirebase = dados;
-
-                // Substitui o genreMix local pela programação
-                // definida no REMOTO para este estúdio
-                Object.keys(musicLibrary).forEach(genero => {
-
-                    if (programacaoFirebase[genero] !== undefined) {
-                        genreMix[genero] =
-                            Number(programacaoFirebase[genero]) || 0;
-                    } else {
-                        genreMix[genero] = 0;
-                    }
-
-                });
-
-            }
-
-            programacaoCarregada = true;
-        })
-        .catch(error => {
-
-            console.error(
-                "Erro ao carregar programação do estúdio:",
-                error
-            );
-
-            programacaoCarregada = false;
-        });
-}
 
     function generatePlaylist() {
       let currentPlayingItem = (currentIndex >= 0 && playlist[currentIndex]) ? playlist[currentIndex] : null;
