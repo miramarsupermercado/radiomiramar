@@ -23,7 +23,6 @@
   
   <style>
     :root { 
-      --primary: #f39c12;
       --primary-glow: rgba(243, 156, 18, 0.3);
       --bg-dark: #0f1115; 
       --sidebar-bg: #1a1d23; 
@@ -352,9 +351,6 @@
                 </svg>
             </button>
 
-            <button id="nextBtn" class="btn-secondary" title="Próxima Música" onclick="skipToNext()">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-            </button>
           </div>
           <div class="progress-container">
             <div class="bar-bg" id="prog-container"><div id="progress-fill"></div></div>
@@ -466,15 +462,20 @@
             ? formatTime(activePlayer.duration - activePlayer.currentTime)
             : "00:00";
 
-        const proximasMusicas = [];
-        for (let i = currentIndex + 1; i < playlist.length; i++) {
-            const item = playlist[i];
-            if (item && item.isP1 && item.name) {
-                proximasMusicas.push(item.name);
-                if (proximasMusicas.length === 3) break;
-            }
-        }
+const proximasMusicas = [];
 
+for (let i = currentIndex + 1; i < playlist.length; i++) {
+    const item = playlist[i];
+
+    if (item && item.isP1 && item.name) {
+        proximasMusicas.push({
+            name: item.name,
+            url: item.url || ""
+        });
+
+        if (proximasMusicas.length === 3) break;
+    }
+}
         database.ref('status_radio/instancias/' + studioId).update({
             musica_atual: currentTitle || "Parado",
             tempo_restante: remaining,
@@ -516,6 +517,25 @@
         }
     });
 
+    database.ref('status_radio/instancias/' + studioId + '/comando_mix_generos').on('value', (snapshot) => {
+    const payload = snapshot.val();
+
+    if (!payload || !payload.mix) return;
+
+    console.log("🎛️ Novo mix de gêneros recebido:", payload.mix);
+
+    // Atualiza o mix local do estúdio
+    genreMix = payload.mix;
+
+    // Regenera a playlist usando o novo mix
+    generatePlaylist();
+
+    // Limpa o comando depois de processar
+    database
+        .ref('status_radio/instancias/' + studioId + '/comando_mix_generos')
+        .set(null);
+});
+
     async function speakOfficialGoogleTTS(text) {
         const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_CLOUD_TTS_KEY}`;
         const data = {
@@ -549,7 +569,20 @@
             if (data.acao === "ADICIONAR") {
                 insertMusicByPosition(data.url, data.name, data.posicao);
                 database.ref('status_radio/instancias/' + studioId + '/comando_fila').set(null);
-            } else if (data.acao === "FALAR_TEXTO") {
+            } else if (data.acao === "REMOVER") {
+
+            removerMusicaPorUrl(data.url);
+
+            database
+                .ref('status_radio/instancias/' + studioId + '/comando_fila')
+                .set(null);
+
+
+        // =====================================================
+        // FALAR TEXTO
+        // =====================================================
+
+        } else if (data.acao === "FALAR_TEXTO") {
                 const currentMusicGain = (activePlayer === audioA) ? gainA : gainB;
                 const now = audioCtx.currentTime;
 
@@ -572,6 +605,63 @@
         }
     });
 
+    function removerMusicaPorUrl(url) {
+
+    if (!url) return;
+
+    // Não permite remover a música que está tocando
+    if (
+        playlist[currentIndex] &&
+        playlist[currentIndex].url === url
+    ) {
+        console.warn("Não é possível remover a música que está tocando.");
+        return;
+    }
+
+    for (
+        let i = currentIndex + 1;
+        i < playlist.length;
+        i++
+    ) {
+
+        if (
+            playlist[i].isP1 &&
+            playlist[i].url === url
+        ) {
+
+            // Localiza o próximo item P1
+            // para remover também elementos associados
+            let fim = i + 1;
+
+            while (
+                fim < playlist.length &&
+                !playlist[fim].isP1
+            ) {
+                fim++;
+            }
+
+            playlist.splice(i, fim - i);
+
+            render();
+
+            updateBufferMonitor();
+
+            updateFirebaseStatus(
+                !activePlayer.paused
+            );
+
+            console.log("🗑️ Música removida da playlist:", url);
+
+            return;
+        }
+    }
+
+    console.warn(
+        "Música não encontrada na playlist:",
+        url
+    );
+}
+
     database.ref('status_radio/instancias/' + studioId + '/comando_mensagem').on('value', (snapshot) => {
         const msg = snapshot.val();
         if (msg) {
@@ -583,6 +673,8 @@
             database.ref('status_radio/instancias/' + studioId + '/comando_mensagem').set(null);
         }
     });
+
+
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const mainGain = audioCtx.createGain(); 
