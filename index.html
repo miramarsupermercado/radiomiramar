@@ -513,6 +513,7 @@ for (let i = currentIndex + 1; i < playlist.length; i++) {
             const volValue = parseInt(vol);
             document.getElementById('volRange').value = volValue;
             applyVolume(volValue / 100);
+            localStorage.setItem('miramar_radio_volume', volValue);
             database.ref('status_radio/instancias/' + studioId + '/comando_volume').set(null);
         }
     });
@@ -755,6 +756,7 @@ for (let i = currentIndex + 1; i < playlist.length; i++) {
 
     document.getElementById('volRange').oninput = function() {
         applyVolume(this.value / 100);
+        localStorage.setItem('miramar_radio_volume', this.value);
         if (this.value > 0) {
             isMuted = false;
             document.getElementById('muteBtn').classList.remove('active');
@@ -824,8 +826,18 @@ for (let i = currentIndex + 1; i < playlist.length; i++) {
         updateInterfaceSettings();
     }
 
+    function loadSavedVolume() {
+        const savedVol = localStorage.getItem('miramar_radio_volume');
+        if (savedVol !== null) {
+            const volValue = parseInt(savedVol);
+            document.getElementById('volRange').value = volValue;
+            applyVolume(volValue / 100);
+        }
+    }
+
     window.addEventListener('DOMContentLoaded', async () => {
         loadInterfaceSettings();
+        loadSavedVolume();
         await fetchAllM3U(false); 
         if (Object.keys(musicLibrary).length > 0) {
             generatePlaylist(); 
